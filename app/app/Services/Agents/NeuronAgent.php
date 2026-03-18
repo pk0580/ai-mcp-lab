@@ -11,7 +11,7 @@ use App\Services\Tools\ToolInterface;
 use Illuminate\Support\Collection;
 use Pgvector\Laravel\Distance;
 
-class NeuronAgent
+class NeuronAgent implements AgentInterface
 {
     protected array $tools = [];
     protected EmbeddingService $embeddingService;

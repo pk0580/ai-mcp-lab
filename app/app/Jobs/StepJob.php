@@ -3,8 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\Run;
-use App\Services\Agents\NeuronAgent;
-use App\Services\Tools\SearchTool;
+use App\Services\Agents\AgentFactory;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
@@ -19,9 +18,7 @@ class StepJob implements ShouldQueue
 
     public function handle(): void
     {
-        $agent = new NeuronAgent([
-            new SearchTool(),
-        ]);
+        $agent = AgentFactory::create($this->run);
 
         $agent->processNextStep($this->run);
     }

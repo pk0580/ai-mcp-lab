@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Run extends Model
 {
-    protected $fillable = ['prompt', 'status'];
+    protected $fillable = ['prompt', 'status', 'agent_type'];
 
     public function steps(): HasMany
     {
