@@ -109,34 +109,29 @@ class NeuronAgentTest extends TestCase
         $this->assertEquals('thought', $run->steps->last()->type);
         Queue::assertPushed(StepJob::class, 1);
 
-        // 2. Второй шаг: Call (Action)
+        // 2. Второй шаг: Call и Observation создаются вместе в новом NeuronAgent
         $agent->processNextStep($run);
-        $this->assertCount(2, $run->refresh()->steps);
-        $this->assertEquals('call', $run->steps->last()->type);
+        $this->assertCount(3, $run->refresh()->steps); // Thought + Call + Observation
+        $this->assertEquals('observation', $run->steps->last()->type);
+        $this->assertEquals('call', $run->steps[1]->type);
         Queue::assertPushed(StepJob::class, 2);
 
-        // 3. Третий шаг: Observation
-        $agent->processNextStep($run);
-        $this->assertCount(3, $run->refresh()->steps);
-        $this->assertEquals('observation', $run->steps->last()->type);
-        Queue::assertPushed(StepJob::class, 3);
-
-        // 4. Четвертый шаг: Reflection
+        // 3. Третий шаг: Reflection
         $agent->processNextStep($run);
         $this->assertCount(4, $run->refresh()->steps);
         $this->assertEquals('reflection', $run->steps->last()->type);
-        Queue::assertPushed(StepJob::class, 4);
+        Queue::assertPushed(StepJob::class, 3);
 
-        // 5. Пятый шаг: Answer
+        // 4. Четвертый шаг: Answer
         $agent->processNextStep($run);
         $this->assertCount(5, $run->refresh()->steps);
         $this->assertEquals('answer', $run->steps->last()->type);
-        Queue::assertPushed(StepJob::class, 5);
+        // Answer - это последний шаг, больше Job не пушится
+        Queue::assertPushed(StepJob::class, 3);
 
-        // 6. Завершение
+        // 5. Завершение
         $agent->processNextStep($run);
         $this->assertEquals('completed', $run->fresh()->status);
-        // Больше не пушится Job
-        Queue::assertPushed(StepJob::class, 5);
+        Queue::assertPushed(StepJob::class, 3);
     }
 }

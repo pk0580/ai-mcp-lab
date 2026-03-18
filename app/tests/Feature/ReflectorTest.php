@@ -38,14 +38,13 @@ class ReflectorTest extends TestCase
 
         $agent = new NeuronAgent([$failingTool]);
 
-        // 1. Создаем шаг вызова инструмента
+        // 1. Создаем шаг-мысль, чтобы LLM решила вызвать инструмент
         $run->steps()->create([
-            'type' => 'call',
-            'content' => 'Calling failing tool',
-            'metadata' => ['tool' => 'failing_tool', 'args' => []]
+            'type' => 'thought',
+            'content' => 'Test retry logic',
         ]);
 
-        // Выполняем шаг. Должен упасть и создать шаг 'error'
+        // Выполняем шаг. Агент должен вызвать инструмент, поймать ошибку и создать шаг 'error'
         $agent->processNextStep($run);
 
         $lastStep = $run->steps()->latest('id')->first();
@@ -54,12 +53,6 @@ class ReflectorTest extends TestCase
         // 2. Выполняем следующий проход. Агент должен увидеть ошибку и попробовать еще раз (retry)
         $agent->processNextStep($run);
 
-        $lastStep = $run->steps()->latest('id')->first();
-        $this->assertEquals('call', $lastStep->type);
-        $this->assertEquals(1, $lastStep->metadata['retry_count'] ?? 0);
-
-        // 3. Выполняем еще раз. Теперь должно сработать (т.к. $calls будет 2)
-        $agent->processNextStep($run);
         $lastStep = $run->steps()->latest('id')->first();
         $this->assertEquals('observation', $lastStep->type);
         $this->assertStringContainsString('Success on try 2', $lastStep->content);

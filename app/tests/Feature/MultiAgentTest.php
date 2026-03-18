@@ -33,8 +33,13 @@ class MultiAgentTest extends TestCase
 
         // Второй шаг исследователя - поиск
         $agent->processNextStep($run);
-        $this->assertEquals('call', $run->steps()->latest('id')->first()->type);
-        $this->assertEquals('search', $run->steps()->latest('id')->first()->metadata['tool']);
+        // В новой реализации NeuronAgent создание call сразу выполняет инструмент и создает observation.
+        // Поэтому проверяем, что последние шаги включают call нужного инструмента.
+        $steps = $run->steps()->latest('id')->get();
+        $callStep = $steps->firstWhere('type', 'call');
+        $this->assertNotNull($callStep);
+        $this->assertEquals('search', $callStep->metadata['tool']);
+        $this->assertEquals('observation', $run->steps()->latest('id')->first()->type);
 
         // Имитируем выполнение AgentTool (делегирование) вручную для теста
         $tool = new AgentTool();

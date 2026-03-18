@@ -40,13 +40,13 @@ class OptimizationTest extends TestCase
 
         // 2 шаг (создает call)
         $agent->processNextStep($run);
-        $this->assertEquals(2, $run->steps()->count());
+        $this->assertEquals(3, $run->steps()->count());
         $this->assertEquals('running', $run->fresh()->status);
         Queue::assertPushed(StepJob::class, 2);
 
         // 3 шаг - должен сработать лимит
         $agent->processNextStep($run);
-        $this->assertEquals(3, $run->steps()->count());
+        $this->assertEquals(4, $run->steps()->count());
         $this->assertEquals('failed', $run->fresh()->status);
         $this->assertStringContainsString('Превышено максимальное количество шагов', $run->steps()->latest('id')->first()->content);
 

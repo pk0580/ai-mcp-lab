@@ -14,7 +14,7 @@ class AgentFactory
 
         $agent = match ($agentType) {
             'researcher' => new ResearcherAgent(),
-            'writer' => new WriterAgent(),
+            'writer' => new NeuronAgent(),
             default => new ResearcherAgent(),
         };
 

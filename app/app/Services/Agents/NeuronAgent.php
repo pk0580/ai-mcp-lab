@@ -8,6 +8,9 @@ use App\Models\Run;
 use App\Models\Step;
 use App\Models\StepEmbedding;
 use App\Services\EmbeddingService;
+use App\Services\EmbeddingServiceInterface;
+use App\Services\LLM\LLMServiceInterface;
+use App\Services\LLM\MockLLMService;
 use App\Services\Tools\ToolInterface;
 use Illuminate\Support\Collection;
 use Pgvector\Laravel\Distance;
@@ -15,14 +18,19 @@ use Pgvector\Laravel\Distance;
 class NeuronAgent implements AgentInterface
 {
     protected array $tools = [];
-    protected EmbeddingService $embeddingService;
+    protected EmbeddingServiceInterface $embeddingService;
+    protected LLMServiceInterface $llmService;
     protected int $maxRetries = 3;
     protected int $maxSteps = 20;
     protected float $stepStartTime;
 
-    public function __construct(array $tools = [], ?EmbeddingService $embeddingService = null)
-    {
+    public function __construct(
+        array $tools = [],
+        ?EmbeddingServiceInterface $embeddingService = null,
+        ?LLMServiceInterface $llmService = null
+    ) {
         $this->embeddingService = $embeddingService ?? new EmbeddingService();
+        $this->llmService = $llmService ?? new MockLLMService();
         foreach ($tools as $tool) {
             $this->addTool($tool);
         }
@@ -49,82 +57,40 @@ class NeuronAgent implements AgentInterface
             return;
         }
 
-        // В реальной системе здесь бы вызывалась LLM для принятия решения на основе истории шагов.
-        // Сейчас мы имитируем переходы между шагами.
+        // Получаем решение от LLM
+        $decision = $this->llmService->generateNextStep($run, $this->tools);
 
-        $lastStep = $run->steps()->latest('id')->first();
+        if ($decision['type'] === 'call') {
+            $toolName = $decision['metadata']['tool'] ?? null;
+            $toolArgs = $decision['metadata']['args'] ?? [];
+            $retryCount = $decision['metadata']['retry_count'] ?? 0;
 
-        if (!$lastStep) {
-            // Начальный шаг
-            $this->createStep($run, 'thought', 'Мне нужно найти информацию о мультиагентных системах, чтобы ответить на запрос.');
+            $this->createStep($run, 'call', $decision['content'], $decision['metadata']);
+
+            if ($toolName && isset($this->tools[$toolName])) {
+                try {
+                    $result = $this->tools[$toolName]->execute($toolArgs);
+                    $this->createStep($run, 'observation', $result);
+                } catch (\Exception $e) {
+                    $this->createStep($run, 'error', $e->getMessage(), [
+                        'tool' => $toolName,
+                        'args' => $toolArgs,
+                        'retry_count' => $retryCount
+                    ]);
+                }
+            } else {
+                $this->createStep($run, 'error', "Инструмент {$toolName} не найден.");
+            }
             StepJob::dispatch($run);
             return;
         }
 
-        switch ($lastStep->type) {
-            case 'thought':
-                $toolName = 'search';
-                $toolArgs = ['query' => 'multiagent systems'];
-                $this->createStep($run, 'call', "Использую инструмент {$toolName} с аргументами: " . json_encode($toolArgs), [
-                    'tool' => $toolName,
-                    'args' => $toolArgs
-                ]);
-                StepJob::dispatch($run);
-                break;
+        $this->createStep($run, $decision['type'], $decision['content'], $decision['metadata'] ?? []);
 
-            case 'call':
-                $toolName = $lastStep->metadata['tool'] ?? null;
-                $toolArgs = $lastStep->metadata['args'] ?? [];
-                $retryCount = $lastStep->metadata['retry_count'] ?? 0;
-
-                if ($toolName && isset($this->tools[$toolName])) {
-                    try {
-                        $result = $this->tools[$toolName]->execute($toolArgs);
-                        $this->createStep($run, 'observation', $result);
-                    } catch (\Exception $e) {
-                        $this->createStep($run, 'error', $e->getMessage(), [
-                            'tool' => $toolName,
-                            'args' => $toolArgs,
-                            'retry_count' => $retryCount
-                        ]);
-                    }
-                } else {
-                    $this->createStep($run, 'error', "Инструмент {$toolName} не найден.");
-                }
-                StepJob::dispatch($run);
-                break;
-
-            case 'error':
-                $toolName = $lastStep->metadata['tool'] ?? null;
-                $toolArgs = $lastStep->metadata['args'] ?? [];
-                $retryCount = $lastStep->metadata['retry_count'] ?? 0;
-
-                if ($retryCount < $this->maxRetries) {
-                    $this->createStep($run, 'call', "Повторная попытка ({$retryCount}) для {$toolName}", [
-                        'tool' => $toolName,
-                        'args' => $toolArgs,
-                        'retry_count' => $retryCount + 1
-                    ]);
-                } else {
-                    $this->createStep($run, 'answer', "Ошибка после {$retryCount} попыток: " . $lastStep->content);
-                }
-                StepJob::dispatch($run);
-                break;
-
-            case 'observation':
-                $this->createStep($run, 'reflection', 'Анализирую полученные данные: ' . $lastStep->content);
-                StepJob::dispatch($run);
-                break;
-
-            case 'reflection':
-                $this->createStep($run, 'answer', 'Мультиагентная система — это система, состоящая из множества взаимодействующих агентов.');
-                StepJob::dispatch($run);
-                break;
-
-            case 'answer':
-            default:
-                $run->update(['status' => 'completed']);
-                break;
+        if ($decision['type'] === 'answer') {
+            $run->update(['status' => 'completed']);
+        } else {
+            StepJob::dispatch($run);
         }
     }
 
