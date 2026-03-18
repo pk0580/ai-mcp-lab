@@ -1,0 +1,97 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - ./app:/var/www/html
+    environment:
+      - DB_HOST=db
+      - REDIS_HOST=redis
+      - DB_CONNECTION=pgsql
+      - DB_PORT=5432
+      - DB_DATABASE=mcp_ai
+      - DB_USERNAME=user
+      - DB_PASSWORD=password
+    command: php artisan serve --host=0.0.0.0 --port=8000
+
+  worker:
+    build: ./app
+    command: php artisan queue:work --sleep=3 --tries=3
+    depends_on:
+      - app
+      - redis
+      - db
+    environment:
+      - DB_HOST=db
+      - REDIS_HOST=redis
+      - DB_CONNECTION=pgsql
+      - DB_PORT=5432
+      - DB_DATABASE=mcp_ai
+      - DB_USERNAME=user
+      - DB_PASSWORD=password
+
+  horizon:
+    build: ./app
+    command: php artisan horizon
+    depends_on:
+      - app
+      - redis
+      - db
+    environment:
+      - DB_HOST=db
+      - REDIS_HOST=redis
+      - DB_CONNECTION=pgsql
+      - DB_PORT=5432
+      - DB_DATABASE=mcp_ai
+      - DB_USERNAME=user
+      - DB_PASSWORD=password
+
+  scheduler:
+    build: ./app
+    command: php artisan schedule:work
+    depends_on:
+      - app
+      - redis
+      - db
+    environment:
+      - DB_HOST=db
+      - REDIS_HOST=redis
+      - DB_CONNECTION=pgsql
+      - DB_PORT=5432
+      - DB_DATABASE=mcp_ai
+      - DB_USERNAME=user
+      - DB_PASSWORD=password
+
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: mcp_ai
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  adminer:
+    image: adminer:latest
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:
