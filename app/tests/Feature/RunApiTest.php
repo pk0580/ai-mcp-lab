@@ -4,7 +4,9 @@ namespace Tests\Feature;
 
 use App\Models\Run;
 use App\Models\Step;
+use App\Jobs\RunAgentJob;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class RunApiTest extends TestCase
@@ -13,6 +15,8 @@ class RunApiTest extends TestCase
 
     public function test_can_create_run(): void
     {
+        Queue::fake();
+
         $response = $this->postJson('/api/runs', [
             'prompt' => 'Hello, agent!',
         ]);
@@ -25,6 +29,8 @@ class RunApiTest extends TestCase
             'prompt' => 'Hello, agent!',
             'status' => 'pending',
         ]);
+
+        Queue::assertPushed(RunAgentJob::class);
     }
 
     public function test_validate_prompt_on_create_run(): void

@@ -29,6 +29,9 @@ services:
       - app
       - redis
       - db
+    volumes:
+      - ./app:/var/www/html
+    restart: always
     environment:
       - DB_HOST=db
       - REDIS_HOST=redis
@@ -45,6 +48,8 @@ services:
       - app
       - redis
       - db
+    volumes:
+      - ./app:/var/www/html
     environment:
       - DB_HOST=db
       - REDIS_HOST=redis
@@ -61,6 +66,8 @@ services:
       - app
       - redis
       - db
+    volumes:
+      - ./app:/var/www/html
     environment:
       - DB_HOST=db
       - REDIS_HOST=redis

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\RunAgentJob;
 use App\Models\Run;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,7 +20,9 @@ class RunController extends Controller
             'status' => 'pending',
         ]);
 
-        return response()->json($run, 201);
+        RunAgentJob::dispatch($run);
+
+        return response()->json($run->load('steps'), 201);
     }
 
     public function show(Run $run): JsonResponse

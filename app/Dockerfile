@@ -4,7 +4,10 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     unzip \
     git \
-    && docker-php-ext-install pdo_pgsql pcntl
+    && docker-php-ext-install pdo_pgsql pcntl \
+    && pecl channel-update pecl.php.net \
+    && pecl install redis \
+    && docker-php-ext-enable redis
 
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
