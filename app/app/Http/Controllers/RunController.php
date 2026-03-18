@@ -2,8 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Jobs\RunAgentJob;
 use App\Models\Run;
+use App\Services\Agents\NeuronAgent;
+use App\Services\Tools\SearchTool;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -20,7 +21,11 @@ class RunController extends Controller
             'status' => 'pending',
         ]);
 
-        RunAgentJob::dispatch($run);
+        $agent = new NeuronAgent([
+            new SearchTool(),
+        ]);
+
+        $agent->run($run);
 
         return response()->json($run->load('steps'), 201);
     }

@@ -4,7 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Run;
 use App\Models\Step;
-use App\Jobs\RunAgentJob;
+use App\Jobs\StepJob;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
@@ -23,14 +23,14 @@ class RunApiTest extends TestCase
 
         $response->assertStatus(201)
             ->assertJsonPath('prompt', 'Hello, agent!')
-            ->assertJsonPath('status', 'pending');
+            ->assertJsonPath('status', 'running');
 
         $this->assertDatabaseHas('runs', [
             'prompt' => 'Hello, agent!',
-            'status' => 'pending',
+            'status' => 'running',
         ]);
 
-        Queue::assertPushed(RunAgentJob::class);
+        Queue::assertPushed(StepJob::class);
     }
 
     public function test_validate_prompt_on_create_run(): void
