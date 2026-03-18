@@ -32,6 +32,11 @@ class RunController extends Controller
 
     public function show(Run $run): JsonResponse
     {
-        return response()->json($run->load('steps'));
+        return response()->json($run->load(['steps', 'agentLogs']));
+    }
+
+    public function logs(Run $run): JsonResponse
+    {
+        return response()->json($run->agentLogs()->latest()->get());
     }
 }

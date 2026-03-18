@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Step extends Model
@@ -22,5 +23,10 @@ class Step extends Model
     public function embedding(): HasOne
     {
         return $this->hasOne(StepEmbedding::class);
+    }
+
+    public function agentLogs(): HasMany
+    {
+        return $this->hasMany(AgentStep::class);
     }
 }

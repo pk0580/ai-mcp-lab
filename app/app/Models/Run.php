@@ -13,4 +13,9 @@ class Run extends Model
     {
         return $this->hasMany(Step::class);
     }
+
+    public function agentLogs(): HasMany
+    {
+        return $this->hasMany(AgentStep::class);
+    }
 }

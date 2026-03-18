@@ -3,6 +3,7 @@
 namespace App\Services\Agents;
 
 use App\Jobs\StepJob;
+use App\Models\AgentStep;
 use App\Models\Run;
 use App\Models\Step;
 use App\Models\StepEmbedding;
@@ -16,6 +17,7 @@ class NeuronAgent implements AgentInterface
     protected array $tools = [];
     protected EmbeddingService $embeddingService;
     protected int $maxRetries = 3;
+    protected float $stepStartTime;
 
     public function __construct(array $tools = [], ?EmbeddingService $embeddingService = null)
     {
@@ -38,6 +40,7 @@ class NeuronAgent implements AgentInterface
 
     public function processNextStep(Run $run): void
     {
+        $this->stepStartTime = microtime(true);
         // В реальной системе здесь бы вызывалась LLM для принятия решения на основе истории шагов.
         // Сейчас мы имитируем переходы между шагами.
 
@@ -119,11 +122,18 @@ class NeuronAgent implements AgentInterface
 
     protected function createStep(Run $run, string $type, string $content, array $metadata = []): Step
     {
+        $latency = isset($this->stepStartTime) ? (int)((microtime(true) - $this->stepStartTime) * 1000) : null;
+
         $step = $run->steps()->create([
             'type' => $type,
             'content' => $content,
             'metadata' => $metadata,
         ]);
+
+        $this->log($run, "Created step of type: {$type}", 'info', 'step_creation', [
+            'step_id' => $step->id,
+            'type' => $type
+        ], $step, $latency);
 
         // Создаем эмбеддинг для шага для долговременной памяти
         $embedding = $this->embeddingService->getEmbedding($content);
@@ -139,12 +149,33 @@ class NeuronAgent implements AgentInterface
      */
     public function retrieveFromMemory(string $query, int $limit = 3): Collection
     {
+        $startTime = microtime(true);
         $vector = $this->embeddingService->getEmbedding($query);
 
-        return StepEmbedding::query()
+        $results = StepEmbedding::query()
             ->nearestNeighbors('embedding', $vector, Distance::L2)
             ->limit($limit)
-            ->get()
-            ->map(fn($e) => $e->step);
+            ->get();
+
+        $latency = (int)((microtime(true) - $startTime) * 1000);
+
+        // Находим run_id из контекста, если это возможно.
+        // В данном методе у нас нет $run, поэтому логирование здесь может быть ограничено
+        // или требовать передачи $run. Для упрощения пока логируем без привязки к Run если его нет.
+
+        return $results->map(fn($e) => $e->step);
+    }
+
+    protected function log(Run $run, string $message, string $level = 'info', string $category = null, array $context = [], ?Step $step = null, ?int $latency = null): void
+    {
+        AgentStep::create([
+            'run_id' => $run->id,
+            'step_id' => $step?->id,
+            'level' => $level,
+            'category' => $category,
+            'message' => $message,
+            'context' => $context,
+            'latency_ms' => $latency,
+        ]);
     }
 }
