@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Illuminate\Support\Facades\Cache;
 use Pgvector\Laravel\Vector;
 
 class EmbeddingService
@@ -13,19 +14,27 @@ class EmbeddingService
      */
     public function getEmbedding(string $text): Vector
     {
-        // Для детерминированности в тестах можно использовать хэш,
-        // но для простоты шага сделаем псевдослучайный вектор на основе текста.
-
-        $seed = crc32($text);
-        mt_srand($seed);
-
-        $embedding = [];
-        for ($i = 0; $i < 1536; $i++) {
-            $embedding[] = mt_rand() / mt_getrandmax() * 2 - 1;
+        if (empty(trim($text))) {
+            return new Vector(array_fill(0, 1536, 0.0));
         }
 
-        mt_srand(); // Сброс сида
+        $cacheKey = 'embedding_' . md5($text);
 
-        return new Vector($embedding);
+        return Cache::remember($cacheKey, now()->addDays(1), function () use ($text) {
+            // Для детерминированности в тестах можно использовать хэш,
+            // но для простоты шага сделаем псевдослучайный вектор на основе текста.
+
+            $seed = crc32($text);
+            mt_srand($seed);
+
+            $embedding = [];
+            for ($i = 0; $i < 1536; $i++) {
+                $embedding[] = mt_rand() / mt_getrandmax() * 2 - 1;
+            }
+
+            mt_srand(); // Сброс сида
+
+            return new Vector($embedding);
+        });
     }
 }

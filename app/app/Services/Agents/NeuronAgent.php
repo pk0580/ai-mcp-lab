@@ -17,6 +17,7 @@ class NeuronAgent implements AgentInterface
     protected array $tools = [];
     protected EmbeddingService $embeddingService;
     protected int $maxRetries = 3;
+    protected int $maxSteps = 20;
     protected float $stepStartTime;
 
     public function __construct(array $tools = [], ?EmbeddingService $embeddingService = null)
@@ -41,6 +42,13 @@ class NeuronAgent implements AgentInterface
     public function processNextStep(Run $run): void
     {
         $this->stepStartTime = microtime(true);
+
+        if ($run->steps()->count() >= $this->maxSteps) {
+            $this->createStep($run, 'error', "Превышено максимальное количество шагов ({$this->maxSteps}). Остановка для предотвращения зацикливания.");
+            $run->update(['status' => 'failed']);
+            return;
+        }
+
         // В реальной системе здесь бы вызывалась LLM для принятия решения на основе истории шагов.
         // Сейчас мы имитируем переходы между шагами.
 
