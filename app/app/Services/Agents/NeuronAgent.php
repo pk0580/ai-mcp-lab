@@ -2,16 +2,23 @@
 
 namespace App\Services\Agents;
 
+use App\Jobs\StepJob;
 use App\Models\Run;
 use App\Models\Step;
+use App\Models\StepEmbedding;
+use App\Services\EmbeddingService;
 use App\Services\Tools\ToolInterface;
+use Illuminate\Support\Collection;
+use Pgvector\Laravel\Distance;
 
 class NeuronAgent
 {
     protected array $tools = [];
+    protected EmbeddingService $embeddingService;
 
-    public function __construct(array $tools = [])
+    public function __construct(array $tools = [], ?EmbeddingService $embeddingService = null)
     {
+        $this->embeddingService = $embeddingService ?? new EmbeddingService();
         foreach ($tools as $tool) {
             $this->addTool($tool);
         }
@@ -25,7 +32,7 @@ class NeuronAgent
     public function run(Run $run): void
     {
         $run->update(['status' => 'running']);
-        \App\Jobs\StepJob::dispatch($run);
+        StepJob::dispatch($run);
     }
 
     public function processNextStep(Run $run): void
@@ -38,7 +45,7 @@ class NeuronAgent
         if (!$lastStep) {
             // Начальный шаг
             $this->createStep($run, 'thought', 'Мне нужно найти информацию о мультиагентных системах, чтобы ответить на запрос.');
-            \App\Jobs\StepJob::dispatch($run);
+            StepJob::dispatch($run);
             return;
         }
 
@@ -50,7 +57,7 @@ class NeuronAgent
                     'tool' => $toolName,
                     'args' => $toolArgs
                 ]);
-                \App\Jobs\StepJob::dispatch($run);
+                StepJob::dispatch($run);
                 break;
 
             case 'call':
@@ -63,12 +70,12 @@ class NeuronAgent
                 } else {
                     $this->createStep($run, 'error', "Инструмент {$toolName} не найден.");
                 }
-                \App\Jobs\StepJob::dispatch($run);
+                StepJob::dispatch($run);
                 break;
 
             case 'observation':
                 $this->createStep($run, 'answer', 'Мультиагентная система — это система, состоящая из множества взаимодействующих агентов.');
-                \App\Jobs\StepJob::dispatch($run);
+                StepJob::dispatch($run);
                 break;
 
             case 'answer':
@@ -80,10 +87,32 @@ class NeuronAgent
 
     protected function createStep(Run $run, string $type, string $content, array $metadata = []): Step
     {
-        return $run->steps()->create([
+        $step = $run->steps()->create([
             'type' => $type,
             'content' => $content,
             'metadata' => $metadata,
         ]);
+
+        // Создаем эмбеддинг для шага для долговременной памяти
+        $embedding = $this->embeddingService->getEmbedding($content);
+        $step->embedding()->create([
+            'embedding' => $embedding,
+        ]);
+
+        return $step;
+    }
+
+    /**
+     * Поиск похожих шагов в памяти.
+     */
+    public function retrieveFromMemory(string $query, int $limit = 3): Collection
+    {
+        $vector = $this->embeddingService->getEmbedding($query);
+
+        return StepEmbedding::query()
+            ->nearestNeighbors('embedding', $vector, Distance::L2)
+            ->limit($limit)
+            ->get()
+            ->map(fn($e) => $e->step);
     }
 }

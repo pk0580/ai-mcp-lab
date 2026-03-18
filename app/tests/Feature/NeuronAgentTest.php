@@ -2,19 +2,75 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\StepJob;
 use App\Models\Run;
+use App\Models\Step;
 use App\Services\Agents\NeuronAgent;
 use App\Services\Tools\SearchTool;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class NeuronAgentTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_agent_creates_memory_embeddings(): void
+    {
+        $run = Run::create([
+            'prompt' => 'Tell me about memory',
+            'status' => 'pending',
+        ]);
+
+        $agent = new NeuronAgent();
+
+        // 1. Создаем шаг
+        $agent->processNextStep($run);
+
+        $step = $run->steps()->first();
+        $this->assertNotNull($step);
+        $this->assertNotNull($step->embedding);
+        $this->assertNotNull($step->embedding->embedding);
+    }
+
+    public function test_agent_can_retrieve_from_memory(): void
+    {
+        $run = Run::create([
+            'prompt' => 'Memory test',
+            'status' => 'pending',
+        ]);
+
+        $agent = new NeuronAgent();
+
+        // Создаем несколько шагов с разным контентом
+        $step1 = $run->steps()->create(['type' => 'thought', 'content' => 'The sky is blue']);
+        $agent->retrieveFromMemory('dummy'); // just to use agent's logic for embeddings if needed, but we create manually below to be sure
+
+        // На самом деле createStep в агенте делает эмбеддинги. Используем его.
+        // Мы не можем вызвать напрямую protected, но можем через processNextStep или рефлексию.
+        // Или просто протестируем retrieveFromMemory после того как шаги созданы агентом.
+
+        // Очистим и создадим через агента (имитируем внутренний вызов через public обертку или просто доверяем тесту выше)
+        Step::truncate();
+
+        // Используем Reflection для доступа к protected методу для чистоты теста памяти
+        $reflection = new \ReflectionClass(NeuronAgent::class);
+        $method = $reflection->getMethod('createStep');
+        $method->setAccessible(true);
+
+        $method->invoke($agent, $run, 'thought', 'Information about artificial intelligence');
+        $method->invoke($agent, $run, 'thought', 'Information about cooking pasta');
+
+        // Ищем что-то похожее на AI
+        $results = $agent->retrieveFromMemory('AI and machine learning', 1);
+
+        $this->assertCount(1, $results);
+        $this->assertStringContainsString('artificial intelligence', $results[0]->content);
+    }
+
     public function test_agent_creates_steps_on_run(): void
     {
-        \Illuminate\Support\Facades\Queue::fake();
+        Queue::fake();
 
         $run = Run::create([
             'prompt' => 'What is a multi-agent system?',
@@ -28,12 +84,12 @@ class NeuronAgentTest extends TestCase
         $agent->run($run);
 
         $this->assertEquals('running', $run->fresh()->status);
-        \Illuminate\Support\Facades\Queue::assertPushed(\App\Jobs\StepJob::class);
+        Queue::assertPushed(StepJob::class);
     }
 
     public function test_agent_processes_steps_asynchronously(): void
     {
-        \Illuminate\Support\Facades\Queue::fake();
+        Queue::fake();
 
         $run = Run::create([
             'prompt' => 'What is a multi-agent system?',
@@ -51,30 +107,30 @@ class NeuronAgentTest extends TestCase
         $agent->processNextStep($run);
         $this->assertCount(1, $run->refresh()->steps);
         $this->assertEquals('thought', $run->steps->last()->type);
-        \Illuminate\Support\Facades\Queue::assertPushed(\App\Jobs\StepJob::class, 1);
+        Queue::assertPushed(StepJob::class, 1);
 
         // 2. Второй шаг: Call (Action)
         $agent->processNextStep($run);
         $this->assertCount(2, $run->refresh()->steps);
         $this->assertEquals('call', $run->steps->last()->type);
-        \Illuminate\Support\Facades\Queue::assertPushed(\App\Jobs\StepJob::class, 2);
+        Queue::assertPushed(StepJob::class, 2);
 
         // 3. Третий шаг: Observation
         $agent->processNextStep($run);
         $this->assertCount(3, $run->refresh()->steps);
         $this->assertEquals('observation', $run->steps->last()->type);
-        \Illuminate\Support\Facades\Queue::assertPushed(\App\Jobs\StepJob::class, 3);
+        Queue::assertPushed(StepJob::class, 3);
 
         // 4. Четвертый шаг: Answer
         $agent->processNextStep($run);
         $this->assertCount(4, $run->refresh()->steps);
         $this->assertEquals('answer', $run->steps->last()->type);
-        \Illuminate\Support\Facades\Queue::assertPushed(\App\Jobs\StepJob::class, 4);
+        Queue::assertPushed(StepJob::class, 4);
 
         // 5. Завершение
         $agent->processNextStep($run);
         $this->assertEquals('completed', $run->fresh()->status);
         // Больше не пушится Job
-        \Illuminate\Support\Facades\Queue::assertPushed(\App\Jobs\StepJob::class, 4);
+        Queue::assertPushed(StepJob::class, 4);
     }
 }
