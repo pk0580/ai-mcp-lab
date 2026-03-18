@@ -121,16 +121,22 @@ class NeuronAgentTest extends TestCase
         $this->assertEquals('observation', $run->steps->last()->type);
         Queue::assertPushed(StepJob::class, 3);
 
-        // 4. Четвертый шаг: Answer
+        // 4. Четвертый шаг: Reflection
         $agent->processNextStep($run);
         $this->assertCount(4, $run->refresh()->steps);
-        $this->assertEquals('answer', $run->steps->last()->type);
+        $this->assertEquals('reflection', $run->steps->last()->type);
         Queue::assertPushed(StepJob::class, 4);
 
-        // 5. Завершение
+        // 5. Пятый шаг: Answer
+        $agent->processNextStep($run);
+        $this->assertCount(5, $run->refresh()->steps);
+        $this->assertEquals('answer', $run->steps->last()->type);
+        Queue::assertPushed(StepJob::class, 5);
+
+        // 6. Завершение
         $agent->processNextStep($run);
         $this->assertEquals('completed', $run->fresh()->status);
         // Больше не пушится Job
-        Queue::assertPushed(StepJob::class, 4);
+        Queue::assertPushed(StepJob::class, 5);
     }
 }

@@ -15,6 +15,7 @@ class NeuronAgent implements AgentInterface
 {
     protected array $tools = [];
     protected EmbeddingService $embeddingService;
+    protected int $maxRetries = 3;
 
     public function __construct(array $tools = [], ?EmbeddingService $embeddingService = null)
     {
@@ -63,17 +64,48 @@ class NeuronAgent implements AgentInterface
             case 'call':
                 $toolName = $lastStep->metadata['tool'] ?? null;
                 $toolArgs = $lastStep->metadata['args'] ?? [];
+                $retryCount = $lastStep->metadata['retry_count'] ?? 0;
 
                 if ($toolName && isset($this->tools[$toolName])) {
-                    $result = $this->tools[$toolName]->execute($toolArgs);
-                    $this->createStep($run, 'observation', $result);
+                    try {
+                        $result = $this->tools[$toolName]->execute($toolArgs);
+                        $this->createStep($run, 'observation', $result);
+                    } catch (\Exception $e) {
+                        $this->createStep($run, 'error', $e->getMessage(), [
+                            'tool' => $toolName,
+                            'args' => $toolArgs,
+                            'retry_count' => $retryCount
+                        ]);
+                    }
                 } else {
                     $this->createStep($run, 'error', "Инструмент {$toolName} не найден.");
                 }
                 StepJob::dispatch($run);
                 break;
 
+            case 'error':
+                $toolName = $lastStep->metadata['tool'] ?? null;
+                $toolArgs = $lastStep->metadata['args'] ?? [];
+                $retryCount = $lastStep->metadata['retry_count'] ?? 0;
+
+                if ($retryCount < $this->maxRetries) {
+                    $this->createStep($run, 'call', "Повторная попытка ({$retryCount}) для {$toolName}", [
+                        'tool' => $toolName,
+                        'args' => $toolArgs,
+                        'retry_count' => $retryCount + 1
+                    ]);
+                } else {
+                    $this->createStep($run, 'answer', "Ошибка после {$retryCount} попыток: " . $lastStep->content);
+                }
+                StepJob::dispatch($run);
+                break;
+
             case 'observation':
+                $this->createStep($run, 'reflection', 'Анализирую полученные данные: ' . $lastStep->content);
+                StepJob::dispatch($run);
+                break;
+
+            case 'reflection':
                 $this->createStep($run, 'answer', 'Мультиагентная система — это система, состоящая из множества взаимодействующих агентов.');
                 StepJob::dispatch($run);
                 break;

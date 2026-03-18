@@ -1,0 +1,97 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Run;
+use App\Services\Agents\NeuronAgent;
+use App\Services\Tools\ToolInterface;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
+use Tests\TestCase;
+
+class ReflectorTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_agent_handles_tool_failure_and_retries(): void
+    {
+        Queue::fake();
+
+        $run = Run::create([
+            'prompt' => 'Test retry logic',
+            'status' => 'running',
+        ]);
+
+        // Инструмент, который падает в первый раз, но работает во второй (имитация)
+        $failingTool = new class implements ToolInterface {
+            public static int $calls = 0;
+            public function getName(): string { return 'failing_tool'; }
+            public function getDescription(): string { return 'Fails sometimes'; }
+            public function execute(array $args): string {
+                self::$calls++;
+                if (self::$calls === 1) {
+                    throw new \Exception("Temporary failure");
+                }
+                return "Success on try " . self::$calls;
+            }
+        };
+
+        $agent = new NeuronAgent([$failingTool]);
+
+        // 1. Создаем шаг вызова инструмента
+        $run->steps()->create([
+            'type' => 'call',
+            'content' => 'Calling failing tool',
+            'metadata' => ['tool' => 'failing_tool', 'args' => []]
+        ]);
+
+        // Выполняем шаг. Должен упасть и создать шаг 'error'
+        $agent->processNextStep($run);
+
+        $lastStep = $run->steps()->latest('id')->first();
+        $this->assertEquals('error', $lastStep->type);
+
+        // 2. Выполняем следующий проход. Агент должен увидеть ошибку и попробовать еще раз (retry)
+        $agent->processNextStep($run);
+
+        $lastStep = $run->steps()->latest('id')->first();
+        $this->assertEquals('call', $lastStep->type);
+        $this->assertEquals(1, $lastStep->metadata['retry_count'] ?? 0);
+
+        // 3. Выполняем еще раз. Теперь должно сработать (т.к. $calls будет 2)
+        $agent->processNextStep($run);
+        $lastStep = $run->steps()->latest('id')->first();
+        $this->assertEquals('observation', $lastStep->type);
+        $this->assertStringContainsString('Success on try 2', $lastStep->content);
+    }
+
+    public function test_agent_performs_reflection_before_answering(): void
+    {
+        Queue::fake();
+
+        $run = Run::create([
+            'prompt' => 'Test reflection',
+            'status' => 'running',
+        ]);
+
+        $agent = new NeuronAgent();
+
+        // Имитируем получение наблюдения
+        $run->steps()->create([
+            'type' => 'observation',
+            'content' => 'Found some data, but it might be incomplete.',
+        ]);
+
+        // Агент должен выполнить 'reflection' вместо перехода сразу к 'answer'
+        $agent->processNextStep($run);
+
+        $lastStep = $run->steps()->latest('id')->first();
+        $this->assertEquals('reflection', $lastStep->type);
+        $this->assertStringContainsString('Анализирую полученные данные', $lastStep->content);
+
+        // После рефлексии уже идет ответ (в нашей упрощенной имитации)
+        $agent->processNextStep($run);
+        $lastStep = $run->steps()->latest('id')->first();
+        $this->assertEquals('answer', $lastStep->type);
+    }
+}
