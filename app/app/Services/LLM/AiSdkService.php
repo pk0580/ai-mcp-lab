@@ -4,7 +4,10 @@ namespace App\Services\LLM;
 
 use App\Models\Run;
 use App\Models\Step;
+use App\Mcp\Prompts\ErrorPrompt;
+use App\Mcp\Prompts\SystemPrompt;
 use Illuminate\Support\Collection;
+use Laravel\Mcp\Request;
 use function Laravel\Ai\{agent};
 use Laravel\Ai\Messages\AssistantMessage;
 use Laravel\Ai\Messages\ToolResultMessage;
@@ -16,11 +19,7 @@ class AiSdkService implements LLMServiceInterface
 {
     public function generateNextStep(Run $run, array $tools): array
     {
-        $instructions = "Ты - NeuronAgent, умный ассистент, способный использовать инструменты.
-Тебе дан промпт пользователя и история твоих действий.
-Если тебе нужно получить больше информации, вызови соответствующий инструмент.
-Если у тебя достаточно информации, дай финальный ответ.
-Твои мысли записывай в поле content при вызове инструмента или финальном ответе.";
+        $instructions = (string) (new SystemPrompt())->handle(new Request())->content();
 
         $messages = $this->buildMessages($run);
 
@@ -87,7 +86,12 @@ class AiSdkService implements LLMServiceInterface
                     $toolName = $step->metadata['tool'] ?? 'unknown';
                     $args = $step->metadata['args'] ?? [];
                     $retryCount = $step->metadata['retry_count'] ?? 0;
-                    $messages->push(new UserMessage("Ошибка при вызове {$toolName} (попытка {$retryCount}): {$step->content}. Пожалуйста, попробуй еще раз, если это имеет смысл."));
+                    $errorText = (string) (new ErrorPrompt())->handle(new Request(arguments: [
+                        'toolName' => $toolName,
+                        'retryCount' => $retryCount,
+                        'error' => $step->content,
+                    ]))->content();
+                    $messages->push(new UserMessage($errorText));
                     break;
             }
         });
