@@ -1,6 +1,6 @@
-# NeuronLab — Multi-Agent AI System с Reasoning Loop
+# AiMcpLab — Multi-Agent AI System с Reasoning Loop
 
-NeuronLab — это учебный, но приближенный к production проект, реализующий многоагентную систему ИИ на базе Laravel, MCP и AI SDK.
+AiMcpLab — это учебный, но приближенный к production проект, реализующий многоагентную систему ИИ на базе Laravel, MCP и AI SDK.
 
 Ключевая особенность проекта — реализация агента с циклом мышления (reasoning loop), способного:
 - планировать действия
