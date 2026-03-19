@@ -10,7 +10,6 @@ use App\Models\StepEmbedding;
 use App\Services\EmbeddingService;
 use App\Services\EmbeddingServiceInterface;
 use App\Services\LLM\LLMServiceInterface;
-use App\Services\LLM\MockLLMService;
 use App\Services\Tools\ToolInterface;
 use Illuminate\Support\Collection;
 use Pgvector\Laravel\Distance;
@@ -29,7 +28,11 @@ class NeuronAgent implements AgentInterface
         ?EmbeddingServiceInterface $embeddingService = null,
         ?LLMServiceInterface $llmService = null
     ) {
-        $this->embeddingService = $embeddingService ?? (app()->bound(EmbeddingServiceInterface::class) ? app(EmbeddingServiceInterface::class) : new EmbeddingService());
+        $this->embeddingService = $embeddingService
+            ?? (app()->bound(EmbeddingServiceInterface::class)
+                ? app(EmbeddingServiceInterface::class)
+                : new EmbeddingService());
+
         $this->llmService = $llmService ?? app(LLMServiceInterface::class);
         foreach ($tools as $tool) {
             $this->addTool($tool);
@@ -69,17 +72,28 @@ class NeuronAgent implements AgentInterface
 
             if ($toolName && isset($this->tools[$toolName])) {
                 try {
-                    $result = $this->tools[$toolName]->execute($toolArgs);
+                    $result = (string)$this->tools[$toolName]->handle(new \Laravel\Ai\Tools\Request($toolArgs));
                     $this->createStep($run, 'observation', $result);
                 } catch (\Exception $e) {
+                    $retryCount++;
                     $this->createStep($run, 'error', $e->getMessage(), [
                         'tool' => $toolName,
                         'args' => $toolArgs,
                         'retry_count' => $retryCount
                     ]);
+
+                    if ($retryCount >= $this->maxRetries) {
+                        $run->update(['status' => 'failed']);
+                        $this->log($run, "Превышено количество попыток ({$this->maxRetries}) для инструмента {$toolName}", 'error', 'max_retries_exceeded');
+                        return;
+                    }
                 }
             } else {
-                $this->createStep($run, 'error', "Инструмент {$toolName} не найден.");
+                $this->createStep($run, 'error', "Инструмент {$toolName} не найден.", [
+                    'tool' => $toolName,
+                    'args' => $toolArgs,
+                    'retry_count' => $retryCount
+                ]);
             }
             StepJob::dispatch($run);
             return;

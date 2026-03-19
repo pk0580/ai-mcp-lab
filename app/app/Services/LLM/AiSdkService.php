@@ -5,8 +5,7 @@ namespace App\Services\LLM;
 use App\Models\Run;
 use App\Models\Step;
 use Illuminate\Support\Collection;
-use Laravel\Ai\Ai;
-use Laravel\Ai\AnonymousAgent;
+use function Laravel\Ai\{agent};
 use Laravel\Ai\Messages\AssistantMessage;
 use Laravel\Ai\Messages\ToolResultMessage;
 use Laravel\Ai\Messages\UserMessage;
@@ -24,16 +23,9 @@ class AiSdkService implements LLMServiceInterface
 Твои мысли записывай в поле content при вызове инструмента или финальном ответе.";
 
         $messages = $this->buildMessages($run);
-        $aiTools = array_map(fn($tool) => new AiToolAdapter($tool), $tools);
 
-//        $agent = new AnonymousAgent($instructions, $messages, $aiTools);
-//        $response = Ai::prompt($agent)
-
-        $response = agent(
-            instructions: $instructions,
-            messages: $messages,
-            tools: $aiTools,
-        )->prompt('Tell me about Laravel');
+        $response = agent($instructions, $messages->all(), $tools)
+            ->prompt($run->prompt);
 
         if ($response->toolCalls->isNotEmpty()) {
             /** @var ToolCall $toolCall */
@@ -90,6 +82,12 @@ class AiSdkService implements LLMServiceInterface
 
                     $toolResult = new ToolResult($callId, $toolName, $args, $step->content);
                     $messages->push(new ToolResultMessage(new Collection([$toolResult])));
+                    break;
+                case 'error':
+                    $toolName = $step->metadata['tool'] ?? 'unknown';
+                    $args = $step->metadata['args'] ?? [];
+                    $retryCount = $step->metadata['retry_count'] ?? 0;
+                    $messages->push(new UserMessage("Ошибка при вызове {$toolName} (попытка {$retryCount}): {$step->content}. Пожалуйста, попробуй еще раз, если это имеет смысл."));
                     break;
             }
         });

@@ -4,6 +4,9 @@ namespace App\Services\Tools;
 
 use App\Jobs\StepJob;
 use App\Models\Run;
+use Illuminate\Contracts\JsonSchema\JsonSchema;
+use Laravel\Ai\Tools\Request;
+use Stringable;
 
 class AgentTool implements ToolInterface
 {
@@ -12,13 +15,14 @@ class AgentTool implements ToolInterface
         return 'delegate';
     }
 
-    public function getDescription(): string
+    public function description(): Stringable|string
     {
         return 'Delegate a task to another agent. Args: agent_type, prompt';
     }
 
-    public function execute(array $args): string
+    public function handle(Request $request): Stringable|string
     {
+        $args = $request->all();
         $agentType = $args['agent_type'] ?? 'researcher';
         $prompt = $args['prompt'] ?? '';
 
@@ -36,5 +40,14 @@ class AgentTool implements ToolInterface
         StepJob::dispatch($run);
 
         return "Task delegated to {$agentType}. New Run ID: {$run->id}";
+
+    }
+
+    public function schema(JsonSchema $schema): array
+    {
+        return [
+            'agent_type' => $schema->string('The type of agent to delegate the task to (e.g., researcher, writer).'),
+            'prompt' => $schema->string('The task prompt for the agent.'),
+        ];
     }
 }

@@ -16,8 +16,8 @@ class MockLLMService implements LLMServiceInterface
 
         // 3. Имитируем отправку $systemPrompt и $messages в API чата (например, GPT-4)
         // В реальном сервисе здесь будет вызов OpenAI API с Function Calling.
-        // Для мока мы всё ещё используем логику на основе последнего шага,
-        // но теперь она имитирует ответ от "интеллектуальной" модели, которая видит весь контекст.
+        // Для мока мы используем логику на основе последнего шага,
+        // но она имитирует ответ от "интеллектуальной" модели, которая видит весь контекст.
 
         $steps = $run->steps()->orderBy('id', 'asc')->get();
         $lastStep = $steps->last();
@@ -138,7 +138,7 @@ class MockLLMService implements LLMServiceInterface
         $prompt .= "Вам доступны следующие инструменты:\n";
 
         foreach ($tools as $tool) {
-            $prompt .= "- {$tool->getName()}: {$tool->getDescription()}\n";
+            $prompt .= "- {$tool->getName()}: {$tool->description()}\n";
         }
 
         $prompt .= "\nИспользуйте Function Calling для вызова инструментов.";
@@ -151,7 +151,7 @@ class MockLLMService implements LLMServiceInterface
             ['role' => 'user', 'content' => $run->prompt]
         ];
 
-        foreach ($run->steps()->orderBy('id', 'asc')->get() as $step) {
+        foreach ($run->steps()->orderBy('id')->get() as $step) {
             $role = match ($step->type) {
                 'thought', 'reflection', 'answer' => 'assistant',
                 'call' => 'assistant', // В OpenAI это обычно assistant message с function_call
