@@ -2,6 +2,7 @@
 
 namespace App\Mcp\Servers;
 
+use App\Mcp\Prompts\ErrorPrompt;
 use App\Mcp\Prompts\SystemPrompt;
 use App\Mcp\Resources\MemoryResource;
 use App\Mcp\Resources\ProjectResource;
@@ -31,5 +32,6 @@ class NeuronServer extends Server
 
     protected array $prompts = [
         SystemPrompt::class,
+        ErrorPrompt::class,
     ];
 }
