@@ -3,9 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\Run;
-use App\Models\Step;
 use App\Services\Agents\AgentFactory;
+use App\Services\LLM\LLMServiceInterface;
+use App\Services\LLM\MockLLMService;
 use App\Services\Tools\AgentTool;
+use Laravel\Ai\Tools\Request;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
@@ -16,6 +18,9 @@ class MultiAgentTest extends TestCase
 
     public function test_researcher_agent_delegates_to_writer(): void
     {
+        // Принудительно используем MockLLMService для тестов
+        $this->app->bind(LLMServiceInterface::class, MockLLMService::class);
+
         Queue::fake();
 
         // 1. Создаем запуск для исследователя
@@ -43,7 +48,7 @@ class MultiAgentTest extends TestCase
 
         // Имитируем выполнение AgentTool (делегирование) вручную для теста
         $tool = new AgentTool();
-        $result = $tool->execute(['agent_type' => 'writer', 'prompt' => 'Write about AI based on research']);
+        $result = $tool->handle(new Request(['agent_type' => 'writer', 'prompt' => 'Write about AI based on research']));
 
         $this->assertStringContainsString('Task delegated to writer', $result);
 
@@ -64,6 +69,9 @@ class MultiAgentTest extends TestCase
 
     public function test_writer_agent_processes_independently(): void
     {
+        // Принудительно используем MockLLMService для тестов
+        $this->app->bind(LLMServiceInterface::class, MockLLMService::class);
+
         Queue::fake();
 
         $run = Run::create([

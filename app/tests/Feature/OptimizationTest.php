@@ -6,6 +6,8 @@ use App\Models\Run;
 use App\Services\Agents\NeuronAgent;
 use App\Services\EmbeddingService;
 use App\Jobs\StepJob;
+use App\Services\LLM\LLMServiceInterface;
+use App\Services\LLM\MockLLMService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Queue;
@@ -17,6 +19,9 @@ class OptimizationTest extends TestCase
 
     public function test_agent_stops_at_max_steps(): void
     {
+        // Принудительно используем MockLLMService для тестов
+        $this->app->bind(LLMServiceInterface::class, MockLLMService::class);
+
         Queue::fake();
 
         $run = Run::create([

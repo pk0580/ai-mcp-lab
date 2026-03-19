@@ -3,9 +3,10 @@
 namespace Tests\Feature;
 
 use App\Models\Run;
-use App\Models\Step;
 use App\Models\AgentStep;
 use App\Services\Agents\NeuronAgent;
+use App\Services\LLM\LLMServiceInterface;
+use App\Services\LLM\MockLLMService;
 use App\Services\Tools\SearchTool;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
@@ -17,6 +18,9 @@ class AgentLoggingTest extends TestCase
 
     public function test_agent_logs_steps_and_latency(): void
     {
+        // Принудительно используем MockLLMService для тестов
+        $this->app->bind(LLMServiceInterface::class, MockLLMService::class);
+
         Queue::fake();
 
         $run = Run::create([

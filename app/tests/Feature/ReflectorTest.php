@@ -4,9 +4,13 @@ namespace Tests\Feature;
 
 use App\Models\Run;
 use App\Services\Agents\NeuronAgent;
+use App\Services\LLM\LLMServiceInterface;
+use App\Services\LLM\MockLLMService;
 use App\Services\Tools\ToolInterface;
+use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
+use Laravel\Ai\Tools\Request;
 use Tests\TestCase;
 
 class ReflectorTest extends TestCase
@@ -15,6 +19,9 @@ class ReflectorTest extends TestCase
 
     public function test_agent_handles_tool_failure_and_retries(): void
     {
+        // Принудительно используем MockLLMService для тестов
+        $this->app->bind(LLMServiceInterface::class, MockLLMService::class);
+
         Queue::fake();
 
         $run = Run::create([
@@ -26,8 +33,9 @@ class ReflectorTest extends TestCase
         $failingTool = new class implements ToolInterface {
             public static int $calls = 0;
             public function getName(): string { return 'failing_tool'; }
-            public function getDescription(): string { return 'Fails sometimes'; }
-            public function execute(array $args): string {
+            public function description(): string { return 'Fails sometimes'; }
+            public function schema(JsonSchema $schema): array { return []; }
+            public function handle(Request $request): string {
                 self::$calls++;
                 if (self::$calls === 1) {
                     throw new \Exception("Temporary failure");
@@ -36,7 +44,7 @@ class ReflectorTest extends TestCase
             }
         };
 
-        $agent = new NeuronAgent([$failingTool]);
+        $agent = new NeuronAgent([$failingTool], null, new MockLLMService());
 
         // 1. Создаем шаг-мысль, чтобы LLM решила вызвать инструмент
         $run->steps()->create([
@@ -60,6 +68,9 @@ class ReflectorTest extends TestCase
 
     public function test_agent_performs_reflection_before_answering(): void
     {
+        // Принудительно используем MockLLMService для тестов
+        $this->app->bind(LLMServiceInterface::class, MockLLMService::class);
+
         Queue::fake();
 
         $run = Run::create([
@@ -67,7 +78,7 @@ class ReflectorTest extends TestCase
             'status' => 'running',
         ]);
 
-        $agent = new NeuronAgent();
+        $agent = new NeuronAgent([], null, new MockLLMService());
 
         // Имитируем получение наблюдения
         $run->steps()->create([

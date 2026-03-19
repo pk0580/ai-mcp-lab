@@ -6,6 +6,8 @@ use App\Jobs\StepJob;
 use App\Models\Run;
 use App\Models\Step;
 use App\Services\Agents\NeuronAgent;
+use App\Services\LLM\LLMServiceInterface;
+use App\Services\LLM\MockLLMService;
 use App\Services\Tools\SearchTool;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
@@ -17,6 +19,9 @@ class NeuronAgentTest extends TestCase
 
     public function test_agent_creates_memory_embeddings(): void
     {
+        // Принудительно используем MockLLMService для тестов
+        $this->app->bind(LLMServiceInterface::class, MockLLMService::class);
+
         $run = Run::create([
             'prompt' => 'Tell me about memory',
             'status' => 'pending',
@@ -70,6 +75,9 @@ class NeuronAgentTest extends TestCase
 
     public function test_agent_creates_steps_on_run(): void
     {
+        // Принудительно используем MockLLMService для тестов
+        $this->app->bind(LLMServiceInterface::class, MockLLMService::class);
+
         Queue::fake();
 
         $run = Run::create([
@@ -89,6 +97,9 @@ class NeuronAgentTest extends TestCase
 
     public function test_agent_processes_steps_asynchronously(): void
     {
+        // Принудительно используем MockLLMService для тестов
+        $this->app->bind(LLMServiceInterface::class, MockLLMService::class);
+
         Queue::fake();
 
         $run = Run::create([
