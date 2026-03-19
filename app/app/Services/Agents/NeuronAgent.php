@@ -29,8 +29,8 @@ class NeuronAgent implements AgentInterface
         ?EmbeddingServiceInterface $embeddingService = null,
         ?LLMServiceInterface $llmService = null
     ) {
-        $this->embeddingService = $embeddingService ?? new EmbeddingService();
-        $this->llmService = $llmService ?? new MockLLMService();
+        $this->embeddingService = $embeddingService ?? (app()->bound(EmbeddingServiceInterface::class) ? app(EmbeddingServiceInterface::class) : new EmbeddingService());
+        $this->llmService = $llmService ?? app(LLMServiceInterface::class);
         foreach ($tools as $tool) {
             $this->addTool($tool);
         }
