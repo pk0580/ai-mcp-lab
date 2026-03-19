@@ -3,9 +3,13 @@
 namespace App\Services\LLM;
 
 use App\Models\Run;
+use Laravel\Mcp\Server\Attributes\Description;
+use Laravel\Mcp\Server\Tool;
 
 class MockLLMService implements LLMServiceInterface
 {
+    private const int MAX_RETRIES = 3;
+
     public function generateNextStep(Run $run, array $tools): array
     {
         // 1. Формируем системный промпт с описанием инструментов
@@ -106,7 +110,7 @@ class MockLLMService implements LLMServiceInterface
 
             case 'error':
                 $retryCount = $lastStep->metadata['retry_count'] ?? 0;
-                if ($retryCount < 3) {
+                if ($retryCount < self::MAX_RETRIES) {
                     return [
                         'type' => 'call',
                         'content' => "Произошла ошибка, пробую еще раз. Попытка #" . ($retryCount + 1),
@@ -139,9 +143,9 @@ class MockLLMService implements LLMServiceInterface
 
         foreach ($tools as $name => $tool) {
             $description = '';
-            if ($tool instanceof \Laravel\Mcp\Server\Tool) {
+            if ($tool instanceof Tool) {
                 $reflection = new \ReflectionClass($tool);
-                $attributes = $reflection->getAttributes(\Laravel\Mcp\Server\Attributes\Description::class);
+                $attributes = $reflection->getAttributes(Description::class);
                 if (!empty($attributes)) {
                     $description = $attributes[0]->newInstance()->value;
                 }

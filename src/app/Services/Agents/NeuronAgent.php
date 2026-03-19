@@ -133,9 +133,8 @@ class NeuronAgent implements AgentInterface
         ], $step, $latency);
 
         // Создаем эмбеддинг для шага для долговременной памяти
-        $embedding = $this->embeddingService->getEmbedding($content);
         $step->embedding()->create([
-            'embedding' => $embedding,
+            'embedding' => $this->embeddingService->getEmbedding($content),
         ]);
 
         return $step;
