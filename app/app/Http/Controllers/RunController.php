@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Run;
 use App\Services\Agents\NeuronAgent;
-use App\Services\Tools\SearchTool;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -21,9 +20,7 @@ class RunController extends Controller
             'status' => 'pending',
         ]);
 
-        $agent = new NeuronAgent([
-            new SearchTool(),
-        ]);
+        $agent = new NeuronAgent();
 
         $agent->run($run);
 

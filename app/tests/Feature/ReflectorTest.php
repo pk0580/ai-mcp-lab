@@ -6,11 +6,11 @@ use App\Models\Run;
 use App\Services\Agents\NeuronAgent;
 use App\Services\LLM\LLMServiceInterface;
 use App\Services\LLM\MockLLMService;
-use App\Services\Tools\ToolInterface;
-use Illuminate\Contracts\JsonSchema\JsonSchema;
+use Laravel\Mcp\Request;
+use Laravel\Mcp\Response;
+use Laravel\Mcp\Server\Tool;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
-use Laravel\Ai\Tools\Request;
 use Tests\TestCase;
 
 class ReflectorTest extends TestCase
@@ -30,21 +30,18 @@ class ReflectorTest extends TestCase
         ]);
 
         // Инструмент, который падает в первый раз, но работает во второй (имитация)
-        $failingTool = new class implements ToolInterface {
+        $failingTool = new class extends Tool {
             public static int $calls = 0;
-            public function getName(): string { return 'failing_tool'; }
-            public function description(): string { return 'Fails sometimes'; }
-            public function schema(JsonSchema $schema): array { return []; }
-            public function handle(Request $request): string {
+            public function handle(Request $request): Response {
                 self::$calls++;
                 if (self::$calls === 1) {
                     throw new \Exception("Temporary failure");
                 }
-                return "Success on try " . self::$calls;
+                return Response::text("Success on try " . self::$calls);
             }
         };
 
-        $agent = new NeuronAgent([$failingTool], null, new MockLLMService());
+        $agent = new NeuronAgent(['failing_tool' => $failingTool], null, new MockLLMService());
 
         // 1. Создаем шаг-мысль, чтобы LLM решила вызвать инструмент
         $run->steps()->create([

@@ -8,6 +8,7 @@ use App\Mcp\Prompts\ErrorPrompt;
 use App\Mcp\Prompts\SystemPrompt;
 use Illuminate\Support\Collection;
 use Laravel\Mcp\Request;
+use Laravel\Mcp\Server\Tool as McpTool;
 use function Laravel\Ai\{agent};
 use Laravel\Ai\Messages\AssistantMessage;
 use Laravel\Ai\Messages\ToolResultMessage;
@@ -23,7 +24,10 @@ class AiSdkService implements LLMServiceInterface
 
         $messages = $this->buildMessages($run);
 
-        $response = agent($instructions, $messages->all(), $tools)
+        // Преобразуем MCP инструменты в формат, который понимает Laravel Ai
+        $aiTools = array_values($tools);
+
+        $response = agent($instructions, $messages->all(), $aiTools)
             ->prompt($run->prompt);
 
         if ($response->toolCalls->isNotEmpty()) {

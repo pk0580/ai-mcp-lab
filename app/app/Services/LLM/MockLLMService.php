@@ -137,8 +137,18 @@ class MockLLMService implements LLMServiceInterface
         $prompt = "Вы — полезный ИИ-агент. Вы работаете в цикле Thought -> Call -> Observation -> Reflection -> Answer.\n";
         $prompt .= "Вам доступны следующие инструменты:\n";
 
-        foreach ($tools as $tool) {
-            $prompt .= "- {$tool->getName()}: {$tool->description()}\n";
+        foreach ($tools as $name => $tool) {
+            $description = '';
+            if ($tool instanceof \Laravel\Mcp\Server\Tool) {
+                $reflection = new \ReflectionClass($tool);
+                $attributes = $reflection->getAttributes(\Laravel\Mcp\Server\Attributes\Description::class);
+                if (!empty($attributes)) {
+                    $description = $attributes[0]->newInstance()->value;
+                }
+                $prompt .= "- {$name}: {$description}\n";
+            } else {
+                $prompt .= "- {$name}\n";
+            }
         }
 
         $prompt .= "\nИспользуйте Function Calling для вызова инструментов.";

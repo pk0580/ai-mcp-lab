@@ -2,11 +2,9 @@
 
 namespace App\Services\Agents;
 
-use App\Jobs\StepJob;
-use App\Models\Run;
 use App\Services\EmbeddingServiceInterface;
 use App\Services\LLM\LLMServiceInterface;
-use App\Services\Tools\SearchTool;
+use App\Mcp\Tools\SearchTool;
 
 class ResearcherAgent extends NeuronAgent
 {
@@ -16,7 +14,7 @@ class ResearcherAgent extends NeuronAgent
         ?LLMServiceInterface $llmService = null
     ) {
         if (empty($tools)) {
-            $tools = [new SearchTool()];
+            $tools = ['search' => new SearchTool()];
         }
         parent::__construct($tools, $embeddingService, $llmService);
     }

@@ -3,6 +3,7 @@
 namespace App\Services\Agents;
 
 use App\Jobs\StepJob;
+use App\Mcp\McpRegistry;
 use App\Models\AgentStep;
 use App\Models\Run;
 use App\Models\Step;
@@ -10,8 +11,8 @@ use App\Models\StepEmbedding;
 use App\Services\EmbeddingService;
 use App\Services\EmbeddingServiceInterface;
 use App\Services\LLM\LLMServiceInterface;
-use App\Services\Tools\ToolInterface;
 use Illuminate\Support\Collection;
+use Laravel\Mcp\Server\Tool;
 use Pgvector\Laravel\Distance;
 
 class NeuronAgent implements AgentInterface
@@ -34,14 +35,20 @@ class NeuronAgent implements AgentInterface
                 : new EmbeddingService());
 
         $this->llmService = $llmService ?? app(LLMServiceInterface::class);
-        foreach ($tools as $tool) {
-            $this->addTool($tool);
+
+        // По умолчанию загружаем инструменты из реестра
+        $mcpTools = McpRegistry::getTools()->toArray();
+        foreach (array_merge($mcpTools, $tools) as $name => $tool) {
+            if ($tool instanceof Tool) {
+                $this->addTool(is_string($name) ? $name : (string)$name, $tool);
+            }
         }
     }
 
-    public function addTool(ToolInterface $tool): void
+    public function addTool(string $name, Tool $tool): void
     {
-        $this->tools[$tool->getName()] = $tool;
+        // В MCP инструментах имя можно получить из атрибута, но мы используем переданное имя или ключ
+        $this->tools[$name] = $tool;
     }
 
     public function run(Run $run): void
@@ -72,7 +79,9 @@ class NeuronAgent implements AgentInterface
 
             if ($toolName && isset($this->tools[$toolName])) {
                 try {
-                    $result = (string)$this->tools[$toolName]->handle(new \Laravel\Ai\Tools\Request($toolArgs));
+                    $mcpRequest = new \Laravel\Mcp\Request(arguments: $toolArgs);
+                    $response = $this->tools[$toolName]->handle($mcpRequest);
+                    $result = (string)$response->content();
                     $this->createStep($run, 'observation', $result);
                 } catch (\Exception $e) {
                     $retryCount++;

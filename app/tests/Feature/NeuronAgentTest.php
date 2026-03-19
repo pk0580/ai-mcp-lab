@@ -8,7 +8,7 @@ use App\Models\Step;
 use App\Services\Agents\NeuronAgent;
 use App\Services\LLM\LLMServiceInterface;
 use App\Services\LLM\MockLLMService;
-use App\Services\Tools\SearchTool;
+use App\Mcp\Tools\SearchTool;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
@@ -86,7 +86,7 @@ class NeuronAgentTest extends TestCase
         ]);
 
         $agent = new NeuronAgent([
-            new SearchTool(),
+            'search' => new SearchTool(),
         ]);
 
         $agent->run($run);
@@ -108,7 +108,7 @@ class NeuronAgentTest extends TestCase
         ]);
 
         $agent = new NeuronAgent([
-            new SearchTool(),
+            'search' => new SearchTool(),
         ]);
 
         // Имитируем запуск через run

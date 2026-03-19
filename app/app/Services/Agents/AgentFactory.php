@@ -3,8 +3,6 @@
 namespace App\Services\Agents;
 
 use App\Models\Run;
-use App\Services\Tools\SearchTool;
-use App\Services\Tools\AgentTool;
 
 class AgentFactory
 {
@@ -18,9 +16,9 @@ class AgentFactory
             default => new ResearcherAgent(),
         };
 
-        // Добавляем инструменты
-        $agent->addTool(new SearchTool());
-        $agent->addTool(new AgentTool());
+        // Инструменты по умолчанию уже добавляются в конструкторе NeuronAgent через McpRegistry.
+        // Но если нужно добавить специфические инструменты:
+        // $agent->addTool('search', new SearchTool());
 
         return $agent;
     }

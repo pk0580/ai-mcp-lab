@@ -6,8 +6,8 @@ use App\Models\Run;
 use App\Services\Agents\AgentFactory;
 use App\Services\LLM\LLMServiceInterface;
 use App\Services\LLM\MockLLMService;
-use App\Services\Tools\AgentTool;
-use Laravel\Ai\Tools\Request;
+use App\Mcp\Tools\AgentTool;
+use Laravel\Mcp\Request;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
@@ -38,8 +38,12 @@ class MultiAgentTest extends TestCase
 
         // Второй шаг исследователя - поиск
         $agent->processNextStep($run);
-        // В новой реализации NeuronAgent создание call сразу выполняет инструмент и создает observation.
-        // Поэтому проверяем, что последние шаги включают call нужного инструмента.
+
+        $lastStep = $run->steps()->latest('id')->first();
+        if ($lastStep->type === 'error') {
+            $this->fail('Agent failed with error: ' . $lastStep->content);
+        }
+
         $steps = $run->steps()->latest('id')->get();
         $callStep = $steps->firstWhere('type', 'call');
         $this->assertNotNull($callStep);
@@ -48,9 +52,9 @@ class MultiAgentTest extends TestCase
 
         // Имитируем выполнение AgentTool (делегирование) вручную для теста
         $tool = new AgentTool();
-        $result = $tool->handle(new Request(['agent_type' => 'writer', 'prompt' => 'Write about AI based on research']));
+        $response = $tool->handle(new Request(['agent_type' => 'writer', 'prompt' => 'Write about AI based on research']));
 
-        $this->assertStringContainsString('Task delegated to writer', $result);
+        $this->assertStringContainsString('Task delegated to writer', (string)$response->content());
 
         // Проверяем, что создался новый Run для писателя
         $writerRun = Run::where('agent_type', 'writer')->first();
