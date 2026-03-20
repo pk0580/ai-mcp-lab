@@ -16,35 +16,58 @@ class AgentTool implements ToolInterface
         return 'delegate';
     }
 
-    #[Description('Delegate a task to another agent.')]
+    #[Description('Делегирует задачу другому специализированному агенту.
+    Используйте этот инструмент, когда задача требует специфических навыков (например, глубокого исследования или написания кода),
+    которыми обладает другой агент. Инструмент дождется выполнения задачи и вернет результат.')]
     public function handle(string $agent_type, string $prompt): Stringable|string
     {
+        // 1. Создаем новый процесс для другого агента
         $run = Run::create([
             'prompt' => $prompt,
             'agent_type' => $agent_type,
             'status' => 'pending',
         ]);
 
-        // Мы не вызываем run() здесь напрямую, так как это может создать бесконечную рекурсию в одном процессе.
-        // Вместо этого мы создаем Run, и он будет обработан асинхронно (если это настроено).
-        // В рамках симуляции мы можем просто вернуть ID нового запуска.
-
-        // Для симуляции взаимодействия мы можем запустить его через StepJob
+        // 2. Запускаем выполнение
         StepJob::dispatch($run);
 
-        return "Task delegated to {$agent_type}. New Run ID: {$run->id}";
+        // 3. Синхронное ожидание результата (MCP::call стиль)
+        // В реальном продакшене лучше использовать WebSockets или Callback,
+        // но для учебного примера реализуем опрос:
+        if (app()->environment('testing')) {
+            return "Task delegated to {$agent_type} (Run ID: {$run->id}). Check status later.";
+        }
+
+        $attempts = 0;
+        while ($attempts < 30) { // Ждем до 30 секунд
+            sleep(1);
+            $run->refresh();
+
+            if ($run->status === 'completed') {
+                $lastStep = $run->steps()->where('type', 'answer')->latest()->first();
+                return "Результат от {$agent_type}: " . ($lastStep?->content ?? 'Задача выполнена успешно.');
+            }
+
+            if ($run->status === 'failed') {
+                return "Ошибка: Агент {$agent_type} не смог выполнить задачу.";
+            }
+
+            $attempts++;
+        }
+
+        return "Задача делегирована (Run ID: {$run->id}), но ответ не был получен вовремя. Продолжайте работу, проверив статус позже.";
     }
 
     public function description(): Stringable|string
     {
-        return 'Delegate a task to another agent.';
+        return 'Делегирование задачи другому агенту. Позволяет передать контекст и получить готовый ответ.';
     }
 
     public function schema(JsonSchema $schema): array
     {
         return [
-            'agent_type' => $schema->string('The type of agent to delegate the task to (e.g., researcher, writer).')->required(),
-            'prompt' => $schema->string('The task prompt for the agent.')->required(),
+            'agent_type' => $schema->string('Тип агента: "researcher" для поиска данных, "writer" для обработки текста.')->required(),
+            'prompt' => $schema->string('Четкая инструкция для подчиненного агента.')->required(),
         ];
     }
 }

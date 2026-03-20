@@ -2,6 +2,7 @@
 
 namespace App\Ai\Agents;
 
+use App\Jobs\StepJob;
 use App\Mcp\McpRegistry;
 use App\Models\AgentStep;
 use App\Models\Run;
@@ -29,7 +30,9 @@ class NeuronAgent implements Agent, Conversational, HasStructuredOutput, HasTool
      */
     public function instructions(): Stringable|string
     {
-        return 'You are a Neuron Agent, a helpful assistant that uses tools and structured output to solve complex tasks. You think before you act.';
+        return 'Вы — Neuron Agent, полезный помощник, использующий инструменты и структурированный вывод для решения сложных задач.
+        При использовании инструмента `delegate`, всегда включайте в `prompt` всю важную информацию, которую вы уже узнали,
+        чтобы подчиненный агент имел полный контекст задачи. Вы думаете, прежде чем действовать.';
     }
 
     protected array $customTools = [];
@@ -70,7 +73,7 @@ class NeuronAgent implements Agent, Conversational, HasStructuredOutput, HasTool
     public function run(Run $run): void
     {
         $run->update(['status' => 'running']);
-        \App\Jobs\StepJob::dispatch($run);
+        StepJob::dispatch($run);
     }
 
     /**
@@ -111,7 +114,7 @@ class NeuronAgent implements Agent, Conversational, HasStructuredOutput, HasTool
             } elseif ($nextStep['type'] === 'answer') {
                 $run->update(['status' => 'completed']);
             } else {
-                \App\Jobs\StepJob::dispatch($run);
+                StepJob::dispatch($run);
             }
         } catch (\Exception $e) {
             $latency = (int)((microtime(true) - $startTime) * 1000);
@@ -122,22 +125,26 @@ class NeuronAgent implements Agent, Conversational, HasStructuredOutput, HasTool
     }
 
     /**
-     * Handle a tool call and create an observation step.
+     * Обработка вызова инструмента и создание шага наблюдения (observation).
      */
     protected function handleToolCall(Run $run, array $metadata): void
     {
+        // Извлекаем имя инструмента и аргументы из метаданных, полученных от LLM через AI SDK
         $toolName = $metadata['tool'];
         $args = $metadata['args'] ?? [];
         $availableTools = collect($this->tools());
 
         if ($availableTools->has($toolName)) {
             try {
+                // Извлекаем конкретный объект инструмента
                 $tool = $availableTools->get($toolName);
 
+                // Используем Reflection для динамического вызова метода 'handle' инструмента
                 $reflection = new \ReflectionMethod($tool, 'handle');
                 $parameters = $reflection->getParameters();
                 $resolvedArgs = [];
 
+                // Сопоставляем аргументы из JSON-ответа LLM с параметрами метода handle()
                 foreach ($parameters as $parameter) {
                     $name = $parameter->getName();
                     if (array_key_exists($name, $args)) {
@@ -145,10 +152,11 @@ class NeuronAgent implements Agent, Conversational, HasStructuredOutput, HasTool
                     } elseif ($parameter->isDefaultValueAvailable()) {
                         $resolvedArgs[] = $parameter->getDefaultValue();
                     } else {
-                        throw new \InvalidArgumentException("Missing required argument: {$name}");
+                        throw new \InvalidArgumentException("Отсутствует обязательный аргумент: {$name}");
                     }
                 }
 
+                // Выполняем логику инструмента (например, поиск или делегирование)
                 $response = $reflection->invokeArgs($tool, $resolvedArgs);
 
                 if ($response instanceof \Laravel\Mcp\Response) {
@@ -158,17 +166,19 @@ class NeuronAgent implements Agent, Conversational, HasStructuredOutput, HasTool
                 }
 
                 $step = $this->createStep($run, 'observation', $content, ['tool' => $toolName, 'args' => $args]);
-                $this->logAgentAction($run, $step, 'info', 'step_creation', "Tool {$toolName} executed successfully", ['result' => $content]);
+                $this->logAgentAction($run, $step, 'info', 'step_creation', "Инструмент {$toolName} успешно выполнен", ['result' => $content]);
             } catch (\Exception $e) {
-                $step = $this->createStep($run, 'error', "Tool {$toolName} failed: " . $e->getMessage(), array_merge($metadata, ['tool' => $toolName, 'args' => $args]));
+                // В случае ошибки создаем шаг 'error', чтобы агент мог попробовать исправить ситуацию
+                $step = $this->createStep($run, 'error', "Ошибка инструмента {$toolName}: " . $e->getMessage(), array_merge($metadata, ['tool' => $toolName, 'args' => $args]));
                 $this->logAgentAction($run, $step, 'error', 'step_creation', $e->getMessage());
             }
         } else {
-            $step = $this->createStep($run, 'error', "Tool {$toolName} not found", array_merge($metadata, ['tool' => $toolName]));
-            $this->logAgentAction($run, $step, 'error', 'step_creation', "Tool {$toolName} not found");
+            // Если инструмент не найден в реестре MCP
+            $step = $this->createStep($run, 'error', "Инструмент {$toolName} не найден", array_merge($metadata, ['tool' => $toolName]));
+            $this->logAgentAction($run, $step, 'error', 'step_creation', "Инструмент {$toolName} не найден");
         }
 
-        \App\Jobs\StepJob::dispatch($run);
+        StepJob::dispatch($run);
     }
 
     /**

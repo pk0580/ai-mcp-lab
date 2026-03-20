@@ -8,7 +8,6 @@ use App\Mcp\Prompts\ErrorPrompt;
 use App\Mcp\Prompts\SystemPrompt;
 use Illuminate\Support\Collection;
 use Laravel\Mcp\Request;
-use Laravel\Mcp\Server\Tool as McpTool;
 use function Laravel\Ai\{agent};
 use Laravel\Ai\Messages\AssistantMessage;
 use Laravel\Ai\Messages\ToolResultMessage;

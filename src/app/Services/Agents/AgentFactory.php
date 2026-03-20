@@ -2,20 +2,14 @@
 
 namespace App\Services\Agents;
 
-use App\Ai\Agents\NeuronAgent;
-use App\Ai\Agents\ResearcherAgent;
+use App\Mcp\McpRegistry;
 use App\Models\Run;
 
 class AgentFactory
 {
     public static function create(Run $run): mixed
     {
-        $agentType = $run->agent_type ?? 'researcher';
-
-        return match ($agentType) {
-            'researcher' => new ResearcherAgent(),
-            'writer' => new NeuronAgent(),
-            default => new ResearcherAgent(),
-        };
+        $class = McpRegistry::getAgentClass($run->agent_type);
+        return new $class();
     }
 }

@@ -54,12 +54,13 @@ class MultiAgentTest extends TestCase
         $tool = new AgentTool();
         $response = $tool->handle('writer', 'Write about AI based on research');
 
-        $this->assertStringContainsString('Task delegated to writer', (string)$response);
-
         // Проверяем, что создался новый Run для писателя
         $writerRun = Run::where('agent_type', 'writer')->first();
         $this->assertNotNull($writerRun);
         $this->assertEquals('Write about AI based on research', $writerRun->prompt);
+
+        $this->assertStringContainsString("Task delegated to writer", (string)$response);
+        $this->assertStringContainsString("Run ID: {$writerRun->id}", (string)$response);
 
         // Проверяем, что StepJob был запущен для нового Run
         Queue::assertPushed(\App\Jobs\StepJob::class, function ($job) use ($writerRun) {

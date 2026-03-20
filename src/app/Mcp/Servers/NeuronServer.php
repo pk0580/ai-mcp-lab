@@ -6,24 +6,26 @@ use App\Mcp\Prompts\ErrorPrompt;
 use App\Mcp\Prompts\SystemPrompt;
 use App\Mcp\Resources\MemoryResource;
 use App\Mcp\Resources\ProjectResource;
-use App\Ai\Tools\AgentTool;
-use App\Ai\Tools\ResourceTool;
-use App\Ai\Tools\SearchTool;
+use App\Mcp\McpRegistry;
 use Laravel\Mcp\Server;
 use Laravel\Mcp\Server\Attributes\Instructions;
 use Laravel\Mcp\Server\Attributes\Name;
 use Laravel\Mcp\Server\Attributes\Version;
+use Laravel\Mcp\Server\ServerContext;
 
 #[Name('Neuron Server')]
 #[Version('0.1.0')]
 #[Instructions('Neuron MCP Server provides tools for reasoning, delegation and memory retrieval.')]
 class NeuronServer extends Server
 {
-    protected array $tools = [
-        SearchTool::class,
-        AgentTool::class,
-        ResourceTool::class,
-    ];
+    public function createContext(): ServerContext
+    {
+        $this->tools = McpRegistry::getTools()->map(function ($tool) {
+            return get_class($tool);
+        })->values()->toArray();
+
+        return parent::createContext();
+    }
 
     protected array $resources = [
         ProjectResource::class,
