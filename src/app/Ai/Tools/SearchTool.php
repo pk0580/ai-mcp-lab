@@ -4,6 +4,7 @@ namespace App\Ai\Tools;
 
 use App\Ai\Attributes\Description;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
+use Laravel\Ai\Tools\Request;
 use Stringable;
 
 class SearchTool implements ToolInterface
@@ -14,8 +15,9 @@ class SearchTool implements ToolInterface
     }
 
     #[Description('Search for information on the Internet or in the database.')]
-    public function handle(string $query): Stringable|string
+    public function handle(Request $request): Stringable|string
     {
+        $query = $request->get('query');
         return "Search result for '{$query}': Found some interesting facts about Multi-agent Systems.";
     }
 

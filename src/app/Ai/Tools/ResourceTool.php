@@ -5,6 +5,7 @@ namespace App\Ai\Tools;
 use App\Ai\Attributes\Description;
 use App\Mcp\Resources\ProjectResource;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
+use Laravel\Ai\Tools\Request;
 use Laravel\Mcp\Request as McpRequest;
 use Stringable;
 
@@ -16,7 +17,7 @@ class ResourceTool implements ToolInterface
     }
 
     #[Description('Reads the project description from the internal project resource.')]
-    public function handle(): Stringable|string
+    public function handle(Request $request): Stringable|string
     {
         $resource = new ProjectResource();
         $response = $resource->handle(new McpRequest());

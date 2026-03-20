@@ -39,7 +39,7 @@ class NeuronAgent implements Agent, Conversational, HasStructuredOutput, HasTool
 
     public function __construct(array $tools = [], ...$args)
     {
-        $this->customTools = $tools;
+        $this->customTools = empty($tools) ? McpRegistry::getTools()->all() : $tools;
     }
 
     /**
@@ -134,38 +134,24 @@ class NeuronAgent implements Agent, Conversational, HasStructuredOutput, HasTool
         $args = $metadata['args'] ?? [];
         $availableTools = collect($this->tools());
 
-        if ($availableTools->has($toolName)) {
-            try {
-                // Извлекаем конкретный объект инструмента
-                $tool = $availableTools->get($toolName);
+            if ($availableTools->has($toolName)) {
+                try {
+                    // Извлекаем конкретный объект инструмента
+                    $tool = $availableTools->get($toolName);
 
-                // Используем Reflection для динамического вызова метода 'handle' инструмента
-                $reflection = new \ReflectionMethod($tool, 'handle');
-                $parameters = $reflection->getParameters();
-                $resolvedArgs = [];
+                    // Создаем объект запроса для инструмента Laravel AI
+                    $request = new \Laravel\Ai\Tools\Request($args);
 
-                // Сопоставляем аргументы из JSON-ответа LLM с параметрами метода handle()
-                foreach ($parameters as $parameter) {
-                    $name = $parameter->getName();
-                    if (array_key_exists($name, $args)) {
-                        $resolvedArgs[] = $args[$name];
-                    } elseif ($parameter->isDefaultValueAvailable()) {
-                        $resolvedArgs[] = $parameter->getDefaultValue();
+                    // Выполняем логику инструмента
+                    $response = $tool->handle($request);
+
+                    if ($response instanceof \Laravel\Mcp\Response) {
+                        $content = (string)$response->content();
                     } else {
-                        throw new \InvalidArgumentException("Отсутствует обязательный аргумент: {$name}");
+                        $content = (string)$response;
                     }
-                }
 
-                // Выполняем логику инструмента (например, поиск или делегирование)
-                $response = $reflection->invokeArgs($tool, $resolvedArgs);
-
-                if ($response instanceof \Laravel\Mcp\Response) {
-                    $content = (string)$response->content();
-                } else {
-                    $content = (string)$response;
-                }
-
-                $step = $this->createStep($run, 'observation', $content, ['tool' => $toolName, 'args' => $args]);
+                    $step = $this->createStep($run, 'observation', $content, ['tool' => $toolName, 'args' => $args]);
                 $this->logAgentAction($run, $step, 'info', 'step_creation', "Инструмент {$toolName} успешно выполнен", ['result' => $content]);
             } catch (\Exception $e) {
                 // В случае ошибки создаем шаг 'error', чтобы агент мог попробовать исправить ситуацию

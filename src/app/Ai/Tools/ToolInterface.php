@@ -2,9 +2,9 @@
 
 namespace App\Ai\Tools;
 
-interface ToolInterface
+use Laravel\Ai\Contracts\Tool as AiTool;
+
+interface ToolInterface extends AiTool
 {
     public function getName(): string;
-    public function description(): \Stringable|string;
-    public function schema(\Illuminate\Contracts\JsonSchema\JsonSchema $schema): array;
 }

@@ -29,6 +29,14 @@ class AiSdkService implements LLMServiceInterface
         $response = agent($instructions, $messages->all(), $aiTools)
             ->prompt($run->prompt);
 
+        if ($response->thought) {
+            return [
+                'type' => 'thought',
+                'content' => $response->thought,
+                'metadata' => []
+            ];
+        }
+
         if ($response->toolCalls->isNotEmpty()) {
             /** @var ToolCall $toolCall */
             $toolCall = $response->toolCalls->first();

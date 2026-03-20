@@ -6,7 +6,7 @@ use App\Ai\Attributes\Description;
 use App\Jobs\StepJob;
 use App\Models\Run;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
-use Laravel\Mcp\Response;
+use Laravel\Ai\Tools\Request;
 use Stringable;
 
 class AgentTool implements ToolInterface
@@ -19,8 +19,10 @@ class AgentTool implements ToolInterface
     #[Description('Делегирует задачу другому специализированному агенту.
     Используйте этот инструмент, когда задача требует специфических навыков (например, глубокого исследования или написания кода),
     которыми обладает другой агент. Инструмент дождется выполнения задачи и вернет результат.')]
-    public function handle(string $agent_type, string $prompt): Stringable|string
+    public function handle(Request $request): Stringable|string
     {
+        $agent_type = $request->get('agent_type');
+        $prompt = $request->get('prompt');
         // 1. Создаем новый процесс для другого агента
         $run = Run::create([
             'prompt' => $prompt,

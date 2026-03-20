@@ -33,7 +33,14 @@ class McpRegistry
      */
     public static function getTools(): Collection
     {
-        return collect(self::$tools)->map(function ($tool) {
+        $tools = collect(self::$tools);
+
+        if ($tools->isEmpty()) {
+            $tools['search'] = new SearchTool();
+            $tools['agent'] = new AgentTool();
+        }
+
+        return $tools->map(function ($tool) {
             return is_string($tool) ? new $tool() : $tool;
         });
     }
