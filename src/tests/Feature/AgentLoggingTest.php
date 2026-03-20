@@ -2,12 +2,12 @@
 
 namespace Tests\Feature;
 
-use App\Models\Run;
+use App\Ai\Agents\NeuronAgent;
+use App\Ai\Tools\SearchTool;
 use App\Models\AgentStep;
-use App\Services\Agents\NeuronAgent;
+use App\Models\Run;
 use App\Services\LLM\LLMServiceInterface;
 use App\Services\LLM\MockLLMService;
-use App\Services\Tools\SearchTool;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;

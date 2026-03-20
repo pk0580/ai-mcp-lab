@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Services\Tools;
+namespace App\Ai\Tools;
 
+use App\Ai\Attributes\Description;
 use App\Mcp\Resources\ProjectResource;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
-use Laravel\Ai\Tools\Request;
 use Laravel\Mcp\Request as McpRequest;
 use Stringable;
 
@@ -15,12 +15,8 @@ class ResourceTool implements ToolInterface
         return 'read_project_description';
     }
 
-    public function description(): Stringable|string
-    {
-        return 'Reads the project description from the internal project resource.';
-    }
-
-    public function handle(Request $request): Stringable|string
+    #[Description('Reads the project description from the internal project resource.')]
+    public function handle(): Stringable|string
     {
         $resource = new ProjectResource();
         $response = $resource->handle(new McpRequest());
@@ -28,12 +24,13 @@ class ResourceTool implements ToolInterface
         return (string) $response->content();
     }
 
+    public function description(): Stringable|string
+    {
+        return 'Reads the project description from the internal project resource.';
+    }
+
     public function schema(JsonSchema $schema): array
     {
-        return [
-            'type' => 'object',
-            'properties' => (object) [],
-            'required' => [],
-        ];
+        return [];
     }
 }

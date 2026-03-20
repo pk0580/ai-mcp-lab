@@ -2,9 +2,9 @@
 
 namespace App\Mcp;
 
-use App\Mcp\Tools\AgentTool;
-use App\Mcp\Tools\ResourceTool;
-use App\Mcp\Tools\SearchTool;
+use App\Ai\Tools\SearchTool;
+use App\Ai\Tools\AgentTool;
+use App\Ai\Tools\ResourceTool;
 use Illuminate\Support\Collection;
 
 class McpRegistry

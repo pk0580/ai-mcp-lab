@@ -6,7 +6,7 @@ use App\Models\Run;
 use App\Services\Agents\AgentFactory;
 use App\Services\LLM\LLMServiceInterface;
 use App\Services\LLM\MockLLMService;
-use App\Mcp\Tools\AgentTool;
+use App\Ai\Tools\AgentTool;
 use Laravel\Mcp\Request;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
@@ -52,9 +52,9 @@ class MultiAgentTest extends TestCase
 
         // Имитируем выполнение AgentTool (делегирование) вручную для теста
         $tool = new AgentTool();
-        $response = $tool->handle(new Request(['agent_type' => 'writer', 'prompt' => 'Write about AI based on research']));
+        $response = $tool->handle('writer', 'Write about AI based on research');
 
-        $this->assertStringContainsString('Task delegated to writer', (string)$response->content());
+        $this->assertStringContainsString('Task delegated to writer', (string)$response);
 
         // Проверяем, что создался новый Run для писателя
         $writerRun = Run::where('agent_type', 'writer')->first();

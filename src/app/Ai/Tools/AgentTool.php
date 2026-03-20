@@ -1,11 +1,12 @@
 <?php
 
-namespace App\Services\Tools;
+namespace App\Ai\Tools;
 
+use App\Ai\Attributes\Description;
 use App\Jobs\StepJob;
 use App\Models\Run;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
-use Laravel\Ai\Tools\Request;
+use Laravel\Mcp\Response;
 use Stringable;
 
 class AgentTool implements ToolInterface
@@ -15,20 +16,12 @@ class AgentTool implements ToolInterface
         return 'delegate';
     }
 
-    public function description(): Stringable|string
+    #[Description('Delegate a task to another agent.')]
+    public function handle(string $agent_type, string $prompt): Stringable|string
     {
-        return 'Delegate a task to another agent. Args: agent_type, prompt';
-    }
-
-    public function handle(Request $request): Stringable|string
-    {
-        $args = $request->all();
-        $agentType = $args['agent_type'] ?? 'researcher';
-        $prompt = $args['prompt'] ?? '';
-
         $run = Run::create([
             'prompt' => $prompt,
-            'agent_type' => $agentType,
+            'agent_type' => $agent_type,
             'status' => 'pending',
         ]);
 
@@ -39,15 +32,19 @@ class AgentTool implements ToolInterface
         // Для симуляции взаимодействия мы можем запустить его через StepJob
         StepJob::dispatch($run);
 
-        return "Task delegated to {$agentType}. New Run ID: {$run->id}";
+        return "Task delegated to {$agent_type}. New Run ID: {$run->id}";
+    }
 
+    public function description(): Stringable|string
+    {
+        return 'Delegate a task to another agent.';
     }
 
     public function schema(JsonSchema $schema): array
     {
         return [
-            'agent_type' => $schema->string('The type of agent to delegate the task to (e.g., researcher, writer).'),
-            'prompt' => $schema->string('The task prompt for the agent.'),
+            'agent_type' => $schema->string('The type of agent to delegate the task to (e.g., researcher, writer).')->required(),
+            'prompt' => $schema->string('The task prompt for the agent.')->required(),
         ];
     }
 }

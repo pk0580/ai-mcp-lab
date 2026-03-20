@@ -2,24 +2,20 @@
 
 namespace App\Services\Agents;
 
+use App\Ai\Agents\NeuronAgent;
+use App\Ai\Agents\ResearcherAgent;
 use App\Models\Run;
 
 class AgentFactory
 {
-    public static function create(Run $run): AgentInterface
+    public static function create(Run $run): mixed
     {
         $agentType = $run->agent_type ?? 'researcher';
 
-        $agent = match ($agentType) {
+        return match ($agentType) {
             'researcher' => new ResearcherAgent(),
             'writer' => new NeuronAgent(),
             default => new ResearcherAgent(),
         };
-
-        // Инструменты по умолчанию уже добавляются в конструкторе NeuronAgent через McpRegistry.
-        // Но если нужно добавить специфические инструменты:
-        // $agent->addTool('search', new SearchTool());
-
-        return $agent;
     }
 }

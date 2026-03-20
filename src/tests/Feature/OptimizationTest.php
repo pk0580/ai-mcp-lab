@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Run;
-use App\Services\Agents\NeuronAgent;
+use App\Ai\Agents\NeuronAgent;
 use App\Services\EmbeddingService;
 use App\Jobs\StepJob;
 use App\Services\LLM\LLMServiceInterface;

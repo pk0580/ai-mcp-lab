@@ -3,12 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\Run;
-use App\Services\Agents\NeuronAgent;
+use App\Ai\Agents\NeuronAgent;
 use App\Services\LLM\LLMServiceInterface;
 use App\Services\LLM\MockLLMService;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
-use Laravel\Mcp\Server\Tool;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
@@ -30,9 +29,9 @@ class ReflectorTest extends TestCase
         ]);
 
         // Инструмент, который падает в первый раз, но работает во второй (имитация)
-        $failingTool = new class extends Tool {
+        $failingTool = new class {
             public static int $calls = 0;
-            public function handle(Request $request): Response {
+            public function handle(): Response {
                 self::$calls++;
                 if (self::$calls === 1) {
                     throw new \Exception("Temporary failure");

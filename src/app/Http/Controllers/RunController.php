@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Run;
-use App\Services\Agents\NeuronAgent;
+use App\Ai\Agents\NeuronAgent;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
