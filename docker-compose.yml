@@ -24,7 +24,7 @@ services:
 
   worker:
     build: ./src
-    command: php artisan queue:work --sleep=3 --tries=3
+    command: php artisan queue:work --sleep=3 --tries=3 --timeout=1200
     depends_on:
       - app
       - redis

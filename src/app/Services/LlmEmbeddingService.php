@@ -12,8 +12,7 @@ class LlmEmbeddingService implements EmbeddingServiceInterface
      */
     public function getEmbedding(string $text, ?string $provider = null, ?string $model = null): Vector
     {
-        $response = Embeddings::for([$text])
-            ->generate($provider, $model);
+        $response = Embeddings::for([$text])->generate($provider, $model);
 
         return new Vector($response->first());
     }

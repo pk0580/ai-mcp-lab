@@ -34,7 +34,10 @@ class MultiAgentTest extends TestCase
 
         // Первый шаг исследователя
         $agent->processNextStep($run);
-        $this->assertEquals('Я исследователь. Мне нужно собрать факты по запросу.', $run->steps()->first()->content);
+        $steps = $run->steps()->get();
+        $this->assertEquals('info', $steps[0]->type);
+        $this->assertEquals('Начинаю обработку запроса...', $steps[0]->content);
+        $this->assertEquals('Я исследователь. Мне нужно собрать факты по запросу.', $steps[1]->content);
 
         // Второй шаг исследователя - поиск
         $agent->processNextStep($run);
@@ -92,7 +95,10 @@ class MultiAgentTest extends TestCase
 
         // Первый шаг писателя
         $agent->processNextStep($run);
-        $this->assertEquals('Я писатель. Мне нужно оформить ответ красиво.', $run->steps()->first()->content);
+        $steps = $run->steps()->get();
+        $this->assertEquals('info', $steps[0]->type);
+        $this->assertEquals('Начинаю обработку запроса...', $steps[0]->content);
+        $this->assertEquals('Я писатель. Мне нужно оформить ответ красиво.', $steps[1]->content);
 
         // Второй шаг писателя - ответ
         $agent->processNextStep($run);

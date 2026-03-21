@@ -23,7 +23,7 @@ class MockLLMService implements LLMServiceInterface
         // Для мока мы используем логику на основе последнего шага,
         // но она имитирует ответ от "интеллектуальной" модели, которая видит весь контекст.
 
-        $steps = $run->steps()->orderBy('id', 'asc')->get();
+        $steps = $run->steps()->whereIn('type', ['thought', 'call', 'observation', 'reflection', 'error', 'answer'])->orderBy('id', 'asc')->get();
         $lastStep = $steps->last();
 
         if (!$lastStep) {

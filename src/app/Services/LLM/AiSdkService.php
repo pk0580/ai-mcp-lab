@@ -28,7 +28,17 @@ class AiSdkService implements LLMServiceInterface
         $aiTools = array_values($tools);
 
         $response = agent($instructions, $messages->all(), $aiTools)
-            ->prompt($run->prompt, provider: 'ollama', timeout: 300);
+            ->prompt($run->prompt, provider: 'ollama', timeout: 900);
+
+        // Логируем сырой ответ для отладки, если он подозрительно пуст
+        if (empty($response->text) && $response->toolCalls->isEmpty()) {
+            \Illuminate\Support\Facades\Log::warning("Ollama вернула пустой ответ для Run #{$run->id}");
+            return [
+                'type' => 'error',
+                'content' => 'Модель вернула пустой ответ (Ollama timeout or empty result). Пожалуйста, попробуйте еще раз или уточните запрос.',
+                'metadata' => ['raw_response' => 'empty']
+            ];
+        }
 
         $normalizer = NormalizerFactory::make();
 
@@ -49,9 +59,14 @@ class AiSdkService implements LLMServiceInterface
             /** @var ToolCall $toolCall */
             $toolCall = $response->toolCalls->first();
 
+            $content = $normalizer->normalize($response->text);
+            if (empty($content)) {
+                $content = $thought ? "Рассуждение: " . $normalizer->normalize($thought) : "Вызываю инструмент {$toolCall->name}";
+            }
+
             return [
                 'type' => 'call',
-                'content' => $normalizer->normalize($response->text) ?: "Вызываю инструмент {$toolCall->name}",
+                'content' => $content,
                 'metadata' => [
                     'tool' => $toolCall->name,
                     'args' => $toolCall->arguments,
@@ -60,9 +75,27 @@ class AiSdkService implements LLMServiceInterface
             ];
         }
 
+        $content = $normalizer->normalize($response->text);
+        if (empty($content)) {
+            if ($thought) {
+                return [
+                    'type' => 'thought',
+                    'content' => $normalizer->normalize($thought),
+                    'metadata' => []
+                ];
+            }
+
+            // Если совсем ничего нет, возвращаем ошибку, чтобы агент не завершался успешно с пустым ответом
+            return [
+                'type' => 'error',
+                'content' => 'Модель вернула пустой ответ. Пожалуйста, попробуйте еще раз или уточните запрос.',
+                'metadata' => ['raw_response' => $response->text]
+            ];
+        }
+
         return [
             'type' => 'answer',
-            'content' => $normalizer->normalize($response->text),
+            'content' => $content,
             'metadata' => []
         ];
     }
@@ -92,6 +125,10 @@ class AiSdkService implements LLMServiceInterface
                         ->where('id', '<', $step->id)
                         ->orderBy('id', 'desc')
                         ->first();
+
+                    if (!$lastCallStep) {
+                        break;
+                    }
 
                     $callId = $lastCallStep->metadata['call_id'] ?? 'unknown';
                     $toolName = $lastCallStep->metadata['tool'] ?? 'unknown';

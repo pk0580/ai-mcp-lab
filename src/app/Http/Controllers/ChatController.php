@@ -52,6 +52,11 @@ class ChatController extends Controller
             $attempts = 0;
             $maxAttempts = 300; // ~5 минут при задержке 1 сек
 
+            // Отключаем буферизацию вывода PHP, если она включена
+            while (ob_get_level() > 0) {
+                ob_end_flush();
+            }
+
             while ($attempts < $maxAttempts) {
                 $run->refresh();
 
@@ -74,9 +79,6 @@ class ChatController extends Controller
                     break;
                 }
 
-                if (ob_get_level() > 0) {
-                    ob_flush();
-                }
                 flush();
                 sleep(1);
                 $attempts++;
@@ -85,6 +87,7 @@ class ChatController extends Controller
             'Content-Type' => 'text/event-stream',
             'Cache-Control' => 'no-cache',
             'Connection' => 'keep-alive',
+            'X-Accel-Buffering' => 'no', // Для Nginx
         ]);
     }
 }

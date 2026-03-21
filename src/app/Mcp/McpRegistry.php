@@ -36,12 +36,12 @@ class McpRegistry
         $tools = collect(self::$tools);
 
         if ($tools->isEmpty()) {
-            $tools['search'] = new SearchTool();
-            $tools['agent'] = new AgentTool();
+            $tools['search'] = SearchTool::class;
+            $tools['agent'] = AgentTool::class;
         }
 
         return $tools->map(function ($tool) {
-            return is_string($tool) ? new $tool() : $tool;
+            return is_string($tool) ? app($tool) : $tool;
         });
     }
 }

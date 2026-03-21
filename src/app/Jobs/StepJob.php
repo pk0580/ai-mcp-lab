@@ -11,6 +11,9 @@ class StepJob implements ShouldQueue
 {
     use Queueable;
 
+    public int $timeout = 1200; // 20 минут
+    public int $tries = 1;
+
     public function __construct(protected Run $run)
     {
         //

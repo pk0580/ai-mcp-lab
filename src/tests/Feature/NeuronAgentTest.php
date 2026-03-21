@@ -118,28 +118,30 @@ class NeuronAgentTest extends TestCase
         // Имитируем запуск через run
         $run->update(['status' => 'running']);
 
-        // 1. Первый шаг: Thought
+        // 1. Первый шаг: Info + Thought
         $agent->processNextStep($run);
-        $this->assertCount(1, $run->refresh()->steps);
-        $this->assertEquals('thought', $run->steps->last()->type);
+        $this->assertCount(2, $run->refresh()->steps);
+        $this->assertEquals('info', $run->steps[0]->type);
+        $this->assertEquals('thought', $run->steps[1]->type);
         Queue::assertPushed(StepJob::class, 1);
 
-        // 2. Второй шаг: Call и Observation создаются вместе в новом NeuronAgent
+        // 2. Второй шаг: Call -> Info + Observation создаются вместе в новом NeuronAgent
         $agent->processNextStep($run);
-        $this->assertCount(3, $run->refresh()->steps); // Thought + Call + Observation
-        $this->assertEquals('observation', $run->steps->last()->type);
-        $this->assertEquals('call', $run->steps[1]->type);
+        $this->assertCount(5, $run->refresh()->steps); // Info + Thought + Call + Info + Observation
+        $this->assertEquals('call', $run->steps[2]->type);
+        $this->assertEquals('info', $run->steps[3]->type);
+        $this->assertEquals('observation', $run->steps[4]->type);
         Queue::assertPushed(StepJob::class, 2);
 
         // 3. Третий шаг: Reflection
         $agent->processNextStep($run);
-        $this->assertCount(4, $run->refresh()->steps);
+        $this->assertCount(6, $run->refresh()->steps);
         $this->assertEquals('reflection', $run->steps->last()->type);
         Queue::assertPushed(StepJob::class, 3);
 
         // 4. Четвертый шаг: Answer
         $agent->processNextStep($run);
-        $this->assertCount(5, $run->refresh()->steps);
+        $this->assertCount(7, $run->refresh()->steps);
         $this->assertEquals('answer', $run->steps->last()->type);
         // Answer - это последний шаг, больше Job не пушится
         Queue::assertPushed(StepJob::class, 3);

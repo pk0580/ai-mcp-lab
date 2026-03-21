@@ -2,6 +2,7 @@
 
 namespace App\Ai\Agents;
 
+use App\Ai\Tools\ToolInterface;
 use App\Jobs\StepJob;
 use App\Mcp\McpRegistry;
 use App\Models\AgentStep;
@@ -16,13 +17,14 @@ use Laravel\Ai\Contracts\Conversational;
 use Laravel\Ai\Contracts\HasStructuredOutput;
 use Laravel\Ai\Contracts\HasTools;
 use Laravel\Ai\Promptable;
+use Laravel\Ai\Tools\Request;
 use Stringable;
 
 class NeuronAgent implements Agent, Conversational, HasStructuredOutput, HasTools
 {
     use Promptable, RemembersConversations;
 
-    protected int $maxSteps = 10;
+    protected int $maxSteps = 50;
 
     /**
      * Get the instructions that the agent should follow.
@@ -44,7 +46,7 @@ class NeuronAgent implements Agent, Conversational, HasStructuredOutput, HasTool
     /**
      * Get the tools available to the agent.
      *
-     * @return iterable<\App\Ai\Tools\ToolInterface>
+     * @return iterable<ToolInterface>
      */
     public function tools(): iterable
     {
@@ -108,20 +110,29 @@ class NeuronAgent implements Agent, Conversational, HasStructuredOutput, HasTool
         })->toArray();
 
         try {
+            // Отправляем информационный шаг о начале генерации, если это первый шаг
+            if ($stepsCount === 0) {
+                $this->createStep($run, 'info', 'Начинаю обработку запроса...');
+            }
+
             $nextStep = $llm->generateNextStep($run, $tools);
             $latency = (int)((microtime(true) - $startTime) * 1000);
 
             $step = $this->createStep($run, $nextStep['type'], $nextStep['content'], $nextStep['metadata'] ?? []);
-            $this->logAgentAction($run, $step, 'info', 'step_creation', "Generated next step: {$nextStep['type']}", $nextStep['metadata'] ?? [], $latency);
+            // Мы перенесли базовое логирование в createStep, здесь можно добавить уточняющее логирование с задержкой
+            $this->logAgentAction($run, $step, 'info', 'step_execution', "Generated next step: {$nextStep['type']}", $nextStep['metadata'] ?? [], $latency);
 
             if ($nextStep['type'] === 'call') {
                 $this->handleToolCall($run, $nextStep['metadata']);
             } elseif ($nextStep['type'] === 'answer') {
                 $run->update(['status' => 'completed']);
+            } elseif ($nextStep['type'] === 'error') {
+                $run->update(['status' => 'failed']);
             } else {
+                \Illuminate\Support\Facades\Log::info("Dispatching next StepJob for Run #{$run->id} (type: {$nextStep['type']})");
                 StepJob::dispatch($run);
             }
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $latency = (int)((microtime(true) - $startTime) * 1000);
             $step = $this->createStep($run, 'error', $e->getMessage());
             $this->logAgentAction($run, $step, 'error', 'system_error', $e->getMessage(), ['trace' => $e->getTraceAsString()], $latency);
@@ -148,7 +159,10 @@ class NeuronAgent implements Agent, Conversational, HasStructuredOutput, HasTool
                     $tool = $availableTools->get($toolName);
 
                     // Создаем объект запроса для инструмента Laravel AI
-                    $request = new \Laravel\Ai\Tools\Request($args);
+                    $request = new Request($args);
+
+                    // Отправляем информационный шаг перед выполнением инструмента
+                    $this->createStep($run, 'info', "Выполняю инструмент {$toolName}...", ['args' => $args]);
 
                     // Выполняем логику инструмента
                     $response = $tool->handle($request);
@@ -160,8 +174,8 @@ class NeuronAgent implements Agent, Conversational, HasStructuredOutput, HasTool
                     }
 
                     $step = $this->createStep($run, 'observation', $content, ['tool' => $toolName, 'args' => $args]);
-                    $this->logAgentAction($run, $step, 'info', 'step_creation', "Инструмент {$toolName} успешно выполнен", ['result' => $content]);
-                } catch (\Exception $e) {
+                    $this->logAgentAction($run, $step, 'info', 'tool_execution', "Инструмент {$toolName} успешно выполнен", ['result' => $content]);
+                } catch (\Throwable $e) {
                     // В случае ошибки создаем шаг 'error', чтобы агент мог попробовать исправить ситуацию
                     $step = $this->createStep($run, 'error', "Ошибка инструмента {$toolName}: " . $e->getMessage(), array_merge($metadata, ['tool' => $toolName, 'args' => $args]));
                     $this->logAgentAction($run, $step, 'error', 'step_creation', $e->getMessage());
@@ -172,8 +186,9 @@ class NeuronAgent implements Agent, Conversational, HasStructuredOutput, HasTool
                 $this->logAgentAction($run, $step, 'error', 'step_creation', "Инструмент {$toolName} не найден");
             }
 
+            \Illuminate\Support\Facades\Log::info("Dispatching StepJob after tool call/observation for Run #{$run->id}");
             StepJob::dispatch($run);
-    }
+        }
 
     /**
      * Create a new step and generate its embedding.
@@ -186,21 +201,30 @@ class NeuronAgent implements Agent, Conversational, HasStructuredOutput, HasTool
             'metadata' => $metadata
         ]);
 
-        $embeddingService = resolve(\App\Services\EmbeddingServiceInterface::class);
-        $vector = $embeddingService->getEmbedding($content);
-        $dimension = count($vector->toArray());
+        $this->logAgentAction($run, $step, 'info', 'step_creation', "Created step: {$type}");
 
-        $data = ['step_id' => $step->id];
+        try {
+            $embeddingService = resolve(\App\Services\EmbeddingServiceInterface::class);
+            // Ограничиваем длину текста для эмбеддинга, чтобы не превышать лимиты контекста Ollama
+            $embeddingContent = mb_substr($content, 0, 8000);
+            $vector = $embeddingService->getEmbedding($embeddingContent);
+            $dimension = count($vector->toArray());
 
-        if ($dimension === 768) {
-            $data['embedding_768'] = $vector;
-        } elseif ($dimension === 1024) {
-            $data['embedding_1024'] = $vector;
-        } elseif ($dimension === 1536) {
-            $data['embedding_1536'] = $vector;
+            $data = ['step_id' => $step->id];
+
+            if ($dimension === 768) {
+                $data['embedding_768'] = $vector;
+            } elseif ($dimension === 1024) {
+                $data['embedding_1024'] = $vector;
+            } elseif ($dimension === 1536) {
+                $data['embedding_1536'] = $vector;
+            }
+
+            StepEmbedding::create($data);
+        } catch (\Throwable $e) {
+            // Логируем ошибку, но не прерываем выполнение, чтобы агент мог продолжить работу без памяти для этого шага
+            \Illuminate\Support\Facades\Log::warning("Не удалось создать эмбеддинг для шага {$step->id}: " . $e->getMessage());
         }
-
-        StepEmbedding::create($data);
 
         return $step;
     }
@@ -226,21 +250,28 @@ class NeuronAgent implements Agent, Conversational, HasStructuredOutput, HasTool
      */
     public function retrieveFromMemory(string $query, int $limit = 5): \Illuminate\Support\Collection
     {
-        $embeddingService = resolve(\App\Services\EmbeddingServiceInterface::class);
-        $vector = $embeddingService->getEmbedding($query);
-        $dimension = count($vector->toArray());
+        try {
+            $embeddingService = resolve(\App\Services\EmbeddingServiceInterface::class);
+            // Ограничиваем длину текста для эмбеддинга
+            $embeddingQuery = mb_substr($query, 0, 8000);
+            $vector = $embeddingService->getEmbedding($embeddingQuery);
+            $dimension = count($vector->toArray());
 
-        $column = 'embedding_1536';
-        if ($dimension === 768) {
-            $column = 'embedding_768';
-        } elseif ($dimension === 1024) {
-            $column = 'embedding_1024';
+            $column = 'embedding_1536';
+            if ($dimension === 768) {
+                $column = 'embedding_768';
+            } elseif ($dimension === 1024) {
+                $column = 'embedding_1024';
+            }
+
+            return StepEmbedding::query()
+                ->nearestNeighbors($column, $vector, \Pgvector\Laravel\Distance::L2)
+                ->limit($limit)
+                ->get()
+                ->map(fn($se) => $se->step);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning("Не удалось выполнить поиск в памяти: " . $e->getMessage());
+            return collect();
         }
-
-        return StepEmbedding::query()
-            ->nearestNeighbors($column, $vector, \Pgvector\Laravel\Distance::L2)
-            ->limit($limit)
-            ->get()
-            ->map(fn($se) => $se->step);
     }
 }
