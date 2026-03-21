@@ -3,19 +3,20 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Pgvector\Laravel\Vector;
 use Pgvector\Laravel\HasNeighbors;
+use Pgvector\Laravel\Vector;
 
-class StepEmbedding extends Model
+class Document extends Model
 {
     use HasNeighbors;
 
     protected $fillable = [
-        'step_id',
+        'content',
         'embedding_1536',
         'embedding_768',
         'embedding_1024',
+        'source',
+        'chunk_index',
     ];
 
     protected $casts = [
@@ -23,9 +24,4 @@ class StepEmbedding extends Model
         'embedding_768' => Vector::class,
         'embedding_1024' => Vector::class,
     ];
-
-    public function step(): BelongsTo
-    {
-        return $this->belongsTo(Step::class);
-    }
 }

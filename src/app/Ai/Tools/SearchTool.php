@@ -23,12 +23,12 @@ class SearchTool implements ToolInterface
     public function handle(Request $request): Stringable|string
     {
         $query = $request['query'] ?? '';
-        return "Search result for '{$query}': Found some interesting facts about Multi-agent Systems.";
+        return "Результат поиска для '{$query}': Некая полезная информация.";
     }
 
     public function description(): Stringable|string
     {
-        return 'Search for information on the Internet or in the database.';
+        return 'Поиск информации в интернете или в базе данных.';
     }
 
     public function schema(JsonSchema $schema): array

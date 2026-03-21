@@ -3,7 +3,6 @@
 namespace App\Mcp\Resources;
 
 use App\Models\StepEmbedding;
-use App\Services\EmbeddingService;
 use App\Services\EmbeddingServiceInterface;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
@@ -25,11 +24,19 @@ class MemoryResource extends Resource
             return Response::text('Please provide a query for memory retrieval.');
         }
 
-        $embeddingService = app(EmbeddingServiceInterface::class) ?? new EmbeddingService();
+        $embeddingService = app(EmbeddingServiceInterface::class);
         $vector = $embeddingService->getEmbedding($query);
+        $dimension = count($vector->toArray());
+
+        $column = 'embedding_1536';
+        if ($dimension === 768) {
+            $column = 'embedding_768';
+        } elseif ($dimension === 1024) {
+            $column = 'embedding_1024';
+        }
 
         $results = StepEmbedding::query()
-            ->nearestNeighbors('embedding', $vector, Distance::L2)
+            ->nearestNeighbors($column, $vector, Distance::L2)
             ->limit(3)
             ->get();
 

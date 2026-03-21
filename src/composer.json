@@ -13,7 +13,9 @@
         "laravel/horizon": "^5.45",
         "laravel/mcp": "^0.6.3",
         "laravel/tinker": "^3.0",
-        "pgvector/pgvector": "^0.2.2"
+        "pgvector/pgvector": "^0.2.2",
+        "phpoffice/phpword": "^1.1",
+        "smalot/pdfparser": "^2.12"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",

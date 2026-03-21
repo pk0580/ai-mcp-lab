@@ -35,7 +35,11 @@ class NeuronAgentTest extends TestCase
         $step = $run->steps()->first();
         $this->assertNotNull($step);
         $this->assertNotNull($step->embedding);
-        $this->assertNotNull($step->embedding->embedding);
+        $this->assertTrue(
+            !is_null($step->embedding->embedding_1536) ||
+            !is_null($step->embedding->embedding_768) ||
+            !is_null($step->embedding->embedding_1024)
+        );
     }
 
     public function test_agent_can_retrieve_from_memory(): void

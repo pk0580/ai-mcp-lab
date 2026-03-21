@@ -9,6 +9,8 @@ use App\Ai\Tools\ResourceTool;
 use App\Ai\Tools\SearchTool;
 use App\Mcp\McpRegistry;
 use App\Mcp\Servers\NeuronServer;
+use App\Services\LlmEmbeddingService;
+use App\Services\EmbeddingServiceInterface;
 use App\Services\LLM\AiSdkService;
 use App\Services\LLM\LLMServiceInterface;
 use Illuminate\Support\ServiceProvider;
@@ -22,6 +24,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(LLMServiceInterface::class, AiSdkService::class);
+        $this->app->singleton(EmbeddingServiceInterface::class, LlmEmbeddingService::class);
     }
 
     /**

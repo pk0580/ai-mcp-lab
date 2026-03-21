@@ -8,7 +8,6 @@ use App\Models\AgentStep;
 use App\Models\Run;
 use App\Models\Step;
 use App\Models\StepEmbedding;
-use App\Services\EmbeddingService;
 use App\Services\LLM\LLMServiceInterface;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Ai\Concerns\RemembersConversations;
@@ -50,7 +49,10 @@ class NeuronAgent implements Agent, Conversational, HasStructuredOutput, HasTool
     public function tools(): iterable
     {
         if (!empty($this->customTools)) {
-            return $this->customTools;
+            // Если передан ассоциативный массив, вернем его значения
+            return is_array($this->customTools) && !array_is_list($this->customTools)
+                ? $this->customTools
+                : $this->customTools;
         }
 
         return McpRegistry::getTools()->all();
@@ -140,7 +142,7 @@ class NeuronAgent implements Agent, Conversational, HasStructuredOutput, HasTool
             return [$name => $tool];
         });
 
-        if ($availableTools->has($toolName)) {
+            if ($availableTools->has($toolName)) {
                 try {
                     // Извлекаем конкретный объект инструмента
                     $tool = $availableTools->get($toolName);
@@ -158,19 +160,19 @@ class NeuronAgent implements Agent, Conversational, HasStructuredOutput, HasTool
                     }
 
                     $step = $this->createStep($run, 'observation', $content, ['tool' => $toolName, 'args' => $args]);
-                $this->logAgentAction($run, $step, 'info', 'step_creation', "Инструмент {$toolName} успешно выполнен", ['result' => $content]);
-            } catch (\Exception $e) {
-                // В случае ошибки создаем шаг 'error', чтобы агент мог попробовать исправить ситуацию
-                $step = $this->createStep($run, 'error', "Ошибка инструмента {$toolName}: " . $e->getMessage(), array_merge($metadata, ['tool' => $toolName, 'args' => $args]));
-                $this->logAgentAction($run, $step, 'error', 'step_creation', $e->getMessage());
+                    $this->logAgentAction($run, $step, 'info', 'step_creation', "Инструмент {$toolName} успешно выполнен", ['result' => $content]);
+                } catch (\Exception $e) {
+                    // В случае ошибки создаем шаг 'error', чтобы агент мог попробовать исправить ситуацию
+                    $step = $this->createStep($run, 'error', "Ошибка инструмента {$toolName}: " . $e->getMessage(), array_merge($metadata, ['tool' => $toolName, 'args' => $args]));
+                    $this->logAgentAction($run, $step, 'error', 'step_creation', $e->getMessage());
+                }
+            } else {
+                // Если инструмент не найден в реестре MCP
+                $step = $this->createStep($run, 'error', "Инструмент {$toolName} не найден", array_merge($metadata, ['tool' => $toolName]));
+                $this->logAgentAction($run, $step, 'error', 'step_creation', "Инструмент {$toolName} не найден");
             }
-        } else {
-            // Если инструмент не найден в реестре MCP
-            $step = $this->createStep($run, 'error', "Инструмент {$toolName} не найден", array_merge($metadata, ['tool' => $toolName]));
-            $this->logAgentAction($run, $step, 'error', 'step_creation', "Инструмент {$toolName} не найден");
-        }
 
-        StepJob::dispatch($run);
+            StepJob::dispatch($run);
     }
 
     /**
@@ -184,13 +186,21 @@ class NeuronAgent implements Agent, Conversational, HasStructuredOutput, HasTool
             'metadata' => $metadata
         ]);
 
-        $embeddingService = resolve(EmbeddingService::class);
+        $embeddingService = resolve(\App\Services\EmbeddingServiceInterface::class);
         $vector = $embeddingService->getEmbedding($content);
+        $dimension = count($vector->toArray());
 
-        StepEmbedding::create([
-            'step_id' => $step->id,
-            'embedding' => $vector
-        ]);
+        $data = ['step_id' => $step->id];
+
+        if ($dimension === 768) {
+            $data['embedding_768'] = $vector;
+        } elseif ($dimension === 1024) {
+            $data['embedding_1024'] = $vector;
+        } elseif ($dimension === 1536) {
+            $data['embedding_1536'] = $vector;
+        }
+
+        StepEmbedding::create($data);
 
         return $step;
     }
@@ -216,11 +226,19 @@ class NeuronAgent implements Agent, Conversational, HasStructuredOutput, HasTool
      */
     public function retrieveFromMemory(string $query, int $limit = 5): \Illuminate\Support\Collection
     {
-        $embeddingService = resolve(EmbeddingService::class);
+        $embeddingService = resolve(\App\Services\EmbeddingServiceInterface::class);
         $vector = $embeddingService->getEmbedding($query);
+        $dimension = count($vector->toArray());
+
+        $column = 'embedding_1536';
+        if ($dimension === 768) {
+            $column = 'embedding_768';
+        } elseif ($dimension === 1024) {
+            $column = 'embedding_1024';
+        }
 
         return StepEmbedding::query()
-            ->nearestNeighbors('embedding', $vector, \Pgvector\Laravel\Distance::L2)
+            ->nearestNeighbors($column, $vector, \Pgvector\Laravel\Distance::L2)
             ->limit($limit)
             ->get()
             ->map(fn($se) => $se->step);

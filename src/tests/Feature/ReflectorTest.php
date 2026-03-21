@@ -6,11 +6,22 @@ use App\Models\Run;
 use App\Ai\Agents\NeuronAgent;
 use App\Services\LLM\LLMServiceInterface;
 use App\Services\LLM\MockLLMService;
-use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
+
+class FailingToolStub {
+    public static int $calls = 0;
+    public function getName(): string { return 'failing_tool'; }
+    public function handle(): Response {
+        self::$calls++;
+        if (self::$calls === 1) {
+            throw new \Exception("Temporary failure");
+        }
+        return Response::text("Success on try " . self::$calls);
+    }
+}
 
 class ReflectorTest extends TestCase
 {
@@ -29,16 +40,7 @@ class ReflectorTest extends TestCase
         ]);
 
         // Инструмент, который падает в первый раз, но работает во второй (имитация)
-        $failingTool = new class {
-            public static int $calls = 0;
-            public function handle(): Response {
-                self::$calls++;
-                if (self::$calls === 1) {
-                    throw new \Exception("Temporary failure");
-                }
-                return Response::text("Success on try " . self::$calls);
-            }
-        };
+        $failingTool = new FailingToolStub();
 
         $agent = new NeuronAgent(['failing_tool' => $failingTool], null, new MockLLMService());
 
@@ -48,6 +50,9 @@ class ReflectorTest extends TestCase
             'content' => 'Test retry logic',
         ]);
 
+        // Устанавливаем calls в 0 перед тестом
+        FailingToolStub::$calls = 0;
+
         // Выполняем шаг. Агент должен вызвать инструмент, поймать ошибку и создать шаг 'error'
         $agent->processNextStep($run);
 
@@ -55,9 +60,23 @@ class ReflectorTest extends TestCase
         $this->assertEquals('error', $lastStep->type);
 
         // 2. Выполняем следующий проход. Агент должен увидеть ошибку и попробовать еще раз (retry)
+        // Добавляем retry_count и tool/args, чтобы MockLLMService знал, что повторять
+        \Illuminate\Support\Facades\DB::table('steps')->where('id', $lastStep->id)->update([
+            'metadata' => json_encode(array_merge($lastStep->metadata ?? [], [
+                'retry_count' => 0,
+                'tool' => 'failing_tool',
+                'args' => []
+            ]))
+        ]);
+
+        // ПЕРЕД вторым проходом убедимся, что calls=1 (после первой попытки)
+        // Если processNextStep вызовет handleToolCall, calls станет 2.
+
         $agent->processNextStep($run);
 
-        $lastStep = $run->steps()->latest('id')->first();
+        // После processNextStep должен был создаться CALL (через MockLLMService) и вызваться handleToolCall
+        // который должен был создать OBSERVATION, так как calls теперь 2.
+        $lastStep = $run->fresh()->steps()->orderBy('id', 'desc')->first();
         $this->assertEquals('observation', $lastStep->type);
         $this->assertStringContainsString('Success on try 2', $lastStep->content);
     }

@@ -70,7 +70,6 @@ class AiSdkService implements LLMServiceInterface
     protected function buildMessages(Run $run): Collection
     {
         $messages = new Collection();
-        $messages->push(new UserMessage($run->prompt));
 
         $run->steps->each(function (Step $step) use ($messages) {
             switch ($step->type) {

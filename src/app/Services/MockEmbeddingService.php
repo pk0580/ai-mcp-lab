@@ -12,13 +12,13 @@ class MockEmbeddingService implements EmbeddingServiceInterface
      * В данной реализации мы используем имитацию (случайный вектор),
      * так как нет доступа к реальному API (OpenAI/Ollama).
      */
-    public function getEmbedding(string $text): Vector
+    public function getEmbedding(string $text, ?string $provider = null, ?string $model = null): Vector
     {
         if (empty(trim($text))) {
             return new Vector(array_fill(0, 1536, 0.0));
         }
 
-        $cacheKey = 'embedding_' . md5($text);
+        $cacheKey = 'embedding_' . md5($text . ($provider ?? '') . ($model ?? ''));
 
         return Cache::remember($cacheKey, now()->addDays(1), function () use ($text) {
             // Для детерминированности в тестах можно использовать хэш,

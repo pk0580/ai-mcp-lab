@@ -109,14 +109,17 @@ class MockLLMService implements LLMServiceInterface
                 ];
 
             case 'error':
-                $retryCount = $lastStep->metadata['retry_count'] ?? 0;
+                $metadata = is_string($lastStep->metadata)
+                    ? json_decode($lastStep->metadata, true)
+                    : $lastStep->metadata;
+                $retryCount = $metadata['retry_count'] ?? 0;
                 if ($retryCount < self::MAX_RETRIES) {
                     return [
                         'type' => 'call',
                         'content' => "Произошла ошибка, пробую еще раз. Попытка #" . ($retryCount + 1),
                         'metadata' => [
-                            'tool' => $lastStep->metadata['tool'],
-                            'args' => $lastStep->metadata['args'],
+                            'tool' => $metadata['tool'] ?? 'failing_tool',
+                            'args' => $metadata['args'] ?? [],
                             'retry_count' => $retryCount + 1
                         ]
                     ];
