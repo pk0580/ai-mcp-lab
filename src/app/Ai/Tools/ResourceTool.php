@@ -16,6 +16,11 @@ class ResourceTool implements ToolInterface
         return 'read_project_description';
     }
 
+    public function name(): string
+    {
+        return 'read_project_description';
+    }
+
     #[Description('Reads the project description from the internal project resource.')]
     public function handle(Request $request): Stringable|string
     {

@@ -52,7 +52,10 @@ class MultiAgentTest extends TestCase
 
         // Имитируем выполнение AgentTool (делегирование) вручную для теста
         $tool = new AgentTool();
-        $response = $tool->handle('writer', 'Write about AI based on research');
+        $response = $tool->handle(new \Laravel\Ai\Tools\Request([
+            'agent_type' => 'writer',
+            'prompt' => 'Write about AI based on research',
+        ]));
 
         // Проверяем, что создался новый Run для писателя
         $writerRun = Run::where('agent_type', 'writer')->first();

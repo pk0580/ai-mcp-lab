@@ -6,6 +6,7 @@ use App\Models\Run;
 use App\Models\Step;
 use App\Mcp\Prompts\ErrorPrompt;
 use App\Mcp\Prompts\SystemPrompt;
+use App\Ai\Normalizers\NormalizerFactory;
 use Illuminate\Support\Collection;
 use Laravel\Mcp\Request;
 use function Laravel\Ai\{agent};
@@ -27,12 +28,19 @@ class AiSdkService implements LLMServiceInterface
         $aiTools = array_values($tools);
 
         $response = agent($instructions, $messages->all(), $aiTools)
-            ->prompt($run->prompt);
+            ->prompt($run->prompt, provider: 'ollama', timeout: 300);
 
-        if ($response->thought) {
+        $normalizer = NormalizerFactory::make();
+
+        $thought = null;
+        if ($response instanceof \Laravel\Ai\Responses\StructuredAgentResponse) {
+            $thought = $response['thought'] ?? null;
+        }
+
+        if ($thought) {
             return [
                 'type' => 'thought',
-                'content' => $response->thought,
+                'content' => $normalizer->normalize($thought),
                 'metadata' => []
             ];
         }
@@ -43,7 +51,7 @@ class AiSdkService implements LLMServiceInterface
 
             return [
                 'type' => 'call',
-                'content' => $response->text ?: "Вызываю инструмент {$toolCall->name}",
+                'content' => $normalizer->normalize($response->text) ?: "Вызываю инструмент {$toolCall->name}",
                 'metadata' => [
                     'tool' => $toolCall->name,
                     'args' => $toolCall->arguments,
@@ -54,7 +62,7 @@ class AiSdkService implements LLMServiceInterface
 
         return [
             'type' => 'answer',
-            'content' => $response->text,
+            'content' => $normalizer->normalize($response->text),
             'metadata' => []
         ];
     }

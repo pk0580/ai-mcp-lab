@@ -100,5 +100,19 @@ services:
     depends_on:
       - db
 
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+
+  ollama-pull-models:
+    image: curlimages/curl:latest
+    depends_on:
+      - ollama
+    entrypoint: [ "sh", "-c", "curl -X POST http://ollama:11434/api/pull -d '{\"name\": \"llama3.1\"}' && curl -X POST http://ollama:11434/api/pull -d '{\"name\": \"nomic-embed-text\"}'" ]
+
 volumes:
   postgres_data:
+  ollama_data:

@@ -14,10 +14,15 @@ class SearchTool implements ToolInterface
         return 'search';
     }
 
+    public function name(): string
+    {
+        return 'search';
+    }
+
     #[Description('Search for information on the Internet or in the database.')]
     public function handle(Request $request): Stringable|string
     {
-        $query = $request->get('query');
+        $query = $request['query'] ?? '';
         return "Search result for '{$query}': Found some interesting facts about Multi-agent Systems.";
     }
 

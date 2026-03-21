@@ -13,12 +13,12 @@ return [
     |
     */
 
-    'default' => 'openai',
-    'default_for_images' => 'gemini',
-    'default_for_audio' => 'openai',
-    'default_for_transcription' => 'openai',
-    'default_for_embeddings' => 'openai',
-    'default_for_reranking' => 'cohere',
+    'default' => 'ollama', // openai
+    'default_for_images' => 'ollama',
+    'default_for_audio' => 'ollama',
+    'default_for_transcription' => 'ollama',
+    'default_for_embeddings' => 'ollama',
+    'default_for_reranking' => 'ollama',
 
     /*
     |--------------------------------------------------------------------------
@@ -103,6 +103,14 @@ return [
             'driver' => 'ollama',
             'key' => env('OLLAMA_API_KEY', ''),
             'url' => env('OLLAMA_BASE_URL', 'http://localhost:11434'),
+            'models' => [
+                'text' => [
+                    'default' => env('OLLAMA_MODEL', 'llama3.1'),
+                ],
+                'embeddings' => [
+                    'default' => env('OLLAMA_EMBEDDING_MODEL', 'nomic-embed-text'),
+                ],
+            ],
         ],
 
         'openai' => [

@@ -100,7 +100,10 @@ class NeuronAgent implements Agent, Conversational, HasStructuredOutput, HasTool
 
         $startTime = microtime(true);
         $llm = resolve(LLMServiceInterface::class);
-        $tools = collect($this->tools())->toArray();
+        $tools = collect($this->tools())->mapWithKeys(function ($tool) {
+            $name = method_exists($tool, 'name') ? $tool->name() : (method_exists($tool, 'getName') ? $tool->getName() : class_basename($tool));
+            return [$name => $tool];
+        })->toArray();
 
         try {
             $nextStep = $llm->generateNextStep($run, $tools);
@@ -132,9 +135,12 @@ class NeuronAgent implements Agent, Conversational, HasStructuredOutput, HasTool
         // Извлекаем имя инструмента и аргументы из метаданных, полученных от LLM через AI SDK
         $toolName = $metadata['tool'];
         $args = $metadata['args'] ?? [];
-        $availableTools = collect($this->tools());
+        $availableTools = collect($this->tools())->mapWithKeys(function ($tool) {
+            $name = method_exists($tool, 'name') ? $tool->name() : (method_exists($tool, 'getName') ? $tool->getName() : class_basename($tool));
+            return [$name => $tool];
+        });
 
-            if ($availableTools->has($toolName)) {
+        if ($availableTools->has($toolName)) {
                 try {
                     // Извлекаем конкретный объект инструмента
                     $tool = $availableTools->get($toolName);

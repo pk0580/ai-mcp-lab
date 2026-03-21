@@ -16,13 +16,18 @@ class AgentTool implements ToolInterface
         return 'delegate';
     }
 
+    public function name(): string
+    {
+        return 'delegate';
+    }
+
     #[Description('Делегирует задачу другому специализированному агенту.
     Используйте этот инструмент, когда задача требует специфических навыков (например, глубокого исследования или написания кода),
     которыми обладает другой агент. Инструмент дождется выполнения задачи и вернет результат.')]
     public function handle(Request $request): Stringable|string
     {
-        $agent_type = $request->get('agent_type');
-        $prompt = $request->get('prompt');
+        $agent_type = $request['agent_type'] ?? '';
+        $prompt = $request['prompt'] ?? '';
         // 1. Создаем новый процесс для другого агента
         $run = Run::create([
             'prompt' => $prompt,
